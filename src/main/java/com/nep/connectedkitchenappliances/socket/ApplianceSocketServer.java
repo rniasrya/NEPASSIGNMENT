@@ -37,20 +37,22 @@ public class ApplianceSocketServer {
 
         @Override
         public void run() {
-            try (BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                 PrintWriter output = new PrintWriter(socket.getOutputStream(), true)) {
-
-                String command;
-                while ((command = input.readLine()) != null) {
-                    // Process the command and respond
-                    String response = processCommand(command);
-                    output.println(response);
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+                 
+                String inputLine;
+                // Read incoming messages
+                while ((inputLine = in.readLine()) != null) {
+                    // Process the message
+                    System.out.println("Received: " + inputLine);
+                    // Optionally send a response back to the client
+                    out.println("Acknowledged: " + inputLine);
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                e.printStackTrace();  // Log the exception for debugging
             } finally {
                 try {
-                    socket.close();
+                    socket.close();  // Ensure the socket is closed properly
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -58,18 +60,50 @@ public class ApplianceSocketServer {
         }
 
         private String processCommand(String command) {
-            // Logic to handle commands from appliances
-            switch (command) {
+            String[] parts = command.split(":"); // Split command and parameters
+            String applianceCommand = parts[0]; // Get the main command
+            String response = "";
+
+            switch (applianceCommand) {
                 case "COFFEE_MAKER_START":
-                    // Start the coffee maker
-                    return "Coffee maker started.";
+                    int brewTime = Integer.parseInt(parts[1]); // Get brew time
+                    // Logic to start the coffee maker with brewTime
+                    response = "Coffee maker started for " + brewTime + " minutes.";
+                    break;
                 case "COFFEE_MAKER_STOP":
-                    // Stop the coffee maker
-                    return "Coffee maker stopped.";
-                // Add cases for other appliances as needed
+                    // Logic to stop the coffee maker
+                    response = "Coffee maker stopped.";
+                    break;
+                case "RICE_COOKER_START":
+                    // Logic to start the rice cooker
+                    response = "Rice cooker started.";
+                    break;
+                case "RICE_COOKER_STOP":
+                    // Logic to stop the rice cooker
+                    response = "Rice cooker stopped.";
+                    break;
+                case "MICROWAVE_START":
+                    // Logic to start the microwave
+                    response = "Microwave started.";
+                    break;
+                case "MICROWAVE_STOP":
+                    // Logic to stop the microwave
+                    response = "Microwave stopped.";
+                    break;
+                case "MIXER_START":
+                    // Logic to start the mixer
+                    response = "Mixer started.";
+                    break;
+                case "MIXER_STOP":
+                    // Logic to stop the mixer
+                    response = "Mixer stopped.";
+                    break;
                 default:
-                    return "Unknown command.";
+                    response = "Unknown command.";
+                    break;
             }
+            return response;
+            
         }
     }
 }
