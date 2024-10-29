@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Connected Kitchen IoT</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+	<h1>Connected Kitchen Appliances</h1>
+
+	    <div class="appliance" id="coffeeMaker">
+	        <h2>Coffee Maker</h2>
+	        <button onclick="startCoffeeMaker()">Start Brewing</button>
+	        <button onclick="stopCoffeeMaker()">Stop Brewing</button>
+	    </div>
+		<div id="coffeeMakerStatus"></div>
+
+	    <div class="appliance" id="mixer">
+	        <h2>Mixer</h2>
+	        <input type="number" id="mixerSpeed" placeholder="Speed Level (1-5)" min="1" max="5">
+	        <button onclick="startMixer()">Start Mixing</button>
+	        <button onclick="stopMixer()">Stop Mixing</button>
+	    </div>
+		<div id="mixerStatus"></div>
+
+	    <div class="appliance" id="microwave">
+	        <h2>Microwave</h2>
+	        <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1">
+	        <input type="number" id="microwaveTimer" placeholder="Timer (minutes)" min="1">
+	        <button onclick="startMicrowave()">Start Heating</button>
+	        <button onclick="stopMicrowave()">Stop Heating</button>
+	    </div>
+		<div id="microwaveStatus"></div>
+
+	    <div class="appliance" id="riceCooker">
+	        <h2>Rice Cooker</h2>
+	        <select id="riceCookerMode">
+	            <option value="Rice">Rice</option>
+	            <option value="Steam">Steam</option>
+	            <option value="Warm">Warm</option>
+	        </select>
+	        <button onclick="startRiceCooker()">Start Cooking</button>
+	        <button onclick="stopRiceCooker()">Stop Cooking</button>
+	    </div>
+		<div id="riceCookerStatus"></div>
+
+	    <script src="script.js"></script>
+</body>
+</html>
