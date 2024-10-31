@@ -11,8 +11,9 @@ import com.nep.connectedkitchenapp.appliances.RiceCooker;
 import com.nep.connectedkitchenapp.service.RiceCookerService;
 
 @RestController
-@RequestMapping("/ricecooker")
+@RequestMapping("/riceCooker")
 public class RiceCookerController {
+	
 	@Autowired
     private RiceCookerService riceCookerService;
 

@@ -14,8 +14,11 @@ public class Mixer {
 
     private String state;       // ON or OFF
     private int speedLevel;      // Speed level for mixing (e.g., 1-5)
+    private int mixingTime;
+    private int remainingTime;
     
-    // Getters and Setters
+
+	// Getters and Setters
     public Long getId() { 
     	return id; 
     }
@@ -40,4 +43,19 @@ public class Mixer {
     	this.speedLevel = speedLevel; 
     }
 	
+    public int getMixingTime() {
+    	return mixingTime;
+    }
+    
+    public void setMixingTime(int mixingTime) {
+    	this.mixingTime = mixingTime;
+    }
+    
+    public int getRemainingTime() {
+    	return remainingTime;
+    }
+    
+    public void setRemainingTime(int remainingTime) {
+    	this.remainingTime = remainingTime;
+    }
 }

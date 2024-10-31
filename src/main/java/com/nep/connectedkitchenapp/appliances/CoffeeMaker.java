@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 public class CoffeeMaker {
@@ -14,8 +15,11 @@ public class CoffeeMaker {
     private String state; // "ON" or "OFF"
     private int temperature;
     private int brewTime; // Minutes
+    private String brewStrength;
+    private int remainingTime;
     
-    public Long getId() {
+
+	public Long getId() {
         return id;
     }
 
@@ -46,4 +50,20 @@ public class CoffeeMaker {
     public void setBrewTime(int brewTime) {
         this.brewTime = brewTime;
     }
+    
+    public String getBrewStrength() {
+    	return brewStrength;
+    }
+    
+    public void setBrewStrength(String brewStrength) {
+    	this.brewStrength = brewStrength;
+    }
+    
+    public int getRemainingTime() {
+		return remainingTime;
+	}
+
+	public void setRemainingTime(int remainingTime) {
+		this.remainingTime = remainingTime;
+	}
 }

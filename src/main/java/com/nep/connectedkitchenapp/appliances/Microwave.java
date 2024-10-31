@@ -13,10 +13,9 @@ public class Microwave {
     private Long id;
 
     private String state;       // ON or OFF
-    private int temperature;     // Temperature setting
-    private int timer;           // Timer in minutes
-    
-    // Getters and Setters
+    private int temperature;    // Temperature setting
+    private int timer;          // Timer in minutes
+    private int remainingTime;	// Time in seconds
     public Long getId() { 
     	return id; 
     }
@@ -48,4 +47,13 @@ public class Microwave {
     public void setTimer(int timer) { 
     	this.timer = timer; 
     }
+    
+    public int getRemainingTime() {
+    	return remainingTime;
+    }
+    
+    public void setRemainingTime(int remainingTime) {
+    	this.remainingTime = remainingTime;
+    }
+    
 }

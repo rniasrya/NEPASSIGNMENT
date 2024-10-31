@@ -13,6 +13,7 @@ import com.nep.connectedkitchenapp.service.MixerService;
 @RestController
 @RequestMapping("/mixer")
 public class MixerController {
+	
     @Autowired
     private MixerService mixerService;
 

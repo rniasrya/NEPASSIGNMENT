@@ -11,40 +11,52 @@
 
 	    <div class="appliance" id="coffeeMaker">
 	        <h2>Coffee Maker</h2>
+			<label for="brewStrength">Brew Strength:</label>
+			<select id="brewStrength" required>
+			    <option value="Mild">Mild</option>
+			    <option value="Medium">Medium</option>
+			    <option value="Strong">Strong</option>
+			</select>
 	        <button onclick="startCoffeeMaker()">Start Brewing</button>
 	        <button onclick="stopCoffeeMaker()">Stop Brewing</button>
+			<div id="brewing-timer">Brewing Timer: 00:00</div>
+			<div id="coffeeMakerStatus"></div>
 	    </div>
-		<div id="coffeeMakerStatus"></div>
-
-	    <div class="appliance" id="mixer">
-	        <h2>Mixer</h2>
-	        <input type="number" id="mixerSpeed" placeholder="Speed Level (1-5)" min="1" max="5">
-	        <button onclick="startMixer()">Start Mixing</button>
-	        <button onclick="stopMixer()">Stop Mixing</button>
-	    </div>
-		<div id="mixerStatus"></div>
 
 	    <div class="appliance" id="microwave">
 	        <h2>Microwave</h2>
-	        <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1">
-	        <input type="number" id="microwaveTimer" placeholder="Timer (minutes)" min="1">
+	        <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1" required>
+	        <input type="number" id="microwaveTimer" placeholder="Timer (minutes)" min="1" required>
 	        <button onclick="startMicrowave()">Start Heating</button>
 	        <button onclick="stopMicrowave()">Stop Heating</button>
+			<div id="microwave-timer">Microwave Timer: 00:00</div>
+			<div id="microwaveStatus"></div>
 	    </div>
-		<div id="microwaveStatus"></div>
+		
+		<div class="appliance" id="mixer">
+			 <h2>Mixer</h2>
+			 <input type="number" id="mixerSpeed" placeholder="Speed Level (1-5)" min="1" max="5" required>
+			 <button onclick="startMixer()">Start Mixing</button>
+			 <button onclick="stopMixer()">Stop Mixing</button>
+			 <div id="mixer-timer">Mixer Timer: 00:00</div>
+			 <div id="mixerStatus"></div>
+		</div>
 
 	    <div class="appliance" id="riceCooker">
 	        <h2>Rice Cooker</h2>
-	        <select id="riceCookerMode">
+	        <select id="riceCookerMode" required>
 	            <option value="Rice">Rice</option>
 	            <option value="Steam">Steam</option>
 	            <option value="Warm">Warm</option>
 	        </select>
 	        <button onclick="startRiceCooker()">Start Cooking</button>
 	        <button onclick="stopRiceCooker()">Stop Cooking</button>
+			<div id="ricecooker-timer">Ricecooker Timer: 00:00</div>
+			<div id="riceCookerStatus"></div>
 	    </div>
-		<div id="riceCookerStatus"></div>
-
+		
+		<br>
+		
 	    <script src="script.js"></script>
 </body>
 </html>

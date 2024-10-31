@@ -13,6 +13,7 @@ import com.nep.connectedkitchenapp.service.MicrowaveService;
 @RestController
 @RequestMapping("/microwave")
 public class MicrowaveController {
+	
 	@Autowired
     private MicrowaveService microwaveService;
 
