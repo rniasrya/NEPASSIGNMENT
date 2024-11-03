@@ -1,40 +1,5 @@
 const baseUrl = 'http://localhost:8080';
 
-/*function startCoffeeMaker() {
-    fetch(`${baseUrl}/coffeeMaker/start`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({})
-    })
-    .then(response => response.json())
-    .then(data => {
-        alert(`Coffee Maker started!\n\nID: ${data.id}\nState: ${data.state}\nTemperature: ${data.temperature}°C\nBrew Time: ${data.brewTime} mins`);
-    })
-    .catch(error => console.error('Error:', error));
-}*/
-
-/*function startCoffeeMaker() {
-    fetch(`${baseUrl}/coffeeMaker/start`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({})
-    })
-    .then(response => {
-        if (!response.ok) { // If response is not ok, the appliance couldn’t start
-            return response.text().then(text => { throw new Error(text); });
-        }
-        return response.json();
-    })
-    .then(data => {
-        alert(`Coffee Maker started!\n\nID: ${data.id}\nState: ${data.state}\nTemperature: ${data.temperature}°C\nBrew Time: ${data.brewTime} mins`);
-    })
-    .catch(error => alert(`Error starting Coffee Maker: ${error.message}`));
-}*/
-
 function startCoffeeMaker() {
 	const brewStrength = document.getElementById('brewStrength').value;
 	
@@ -52,22 +17,13 @@ function startCoffeeMaker() {
         return response.json();
     })
     .then(data => {
-        alert(`Coffee Maker started!\n\nID: ${data.id}\nState: ${data.state}\nBrew Strength: ${data.brewStrength}\nTemperature: ${data.temperature}°C\nBrew Time: ${data.brewTime} mins`);
+        console.log(`Coffee Maker current status:\n\nID: ${data.id}\nState: ${data.state}\nBrew Strength: ${data.brewStrength}\nTemperature: ${data.temperature}°C\nBrew Time: ${data.brewTime} seconds`);
     })
     .catch(error => {
         console.error('Error:', error);
         alert(`${error.message}`);
     });
 }
-
-/*function stopCoffeeMaker() {
-    const id = 1; // Replace with the actual ID you want to stop
-    fetch(`${baseUrl}/coffeeMaker/stop/${id}`, {
-        method: 'POST',
-    })
-    .then(() => alert('Coffee Maker stopped'))
-    .catch(error => console.error('Error:', error));
-}*/
 
 function stopCoffeeMaker() {
     const id = 1; // Replace with the actual ID you want to stop
@@ -82,18 +38,23 @@ function stopCoffeeMaker() {
         }
         return console.log('Coffee Maker stopped');
     })
-    .catch(error => alert(error.message)); // Display the error message to the user
+    .catch(error => alert(error.message)); 
 }
 
-/* function startMixer() {
-    const speedLevel = document.getElementById('mixerSpeed').value;
-    fetch(`${baseUrl}/mixer/start?speedLevel=${speedLevel}`, {
+function refillCoffeeMaker() {
+    fetch(`${baseUrl}/coffeeMaker/refill`, {
         method: 'POST',
     })
-    .then(response => response.json())
-    .then(data => alert(`Mixer started: ${JSON.stringify(data)}`))
-    .catch(error => console.error('Error:', error));
-} */
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Failed to stop refill Coffee Maker');
+            });
+        }
+        return console.log('Coffee Maker refilled');
+    })
+    .catch(error => alert(error.message));
+}	
 
 function startMixer() {
     const speedLevel = document.getElementById('mixerSpeed').value;
@@ -115,19 +76,10 @@ function startMixer() {
 	        return response.json();
 	})		
     .then(data => {
-        alert(`Mixer started!\n\nID: ${data.id}\nState: ${data.state}\nSpeed Level: ${data.speedLevel}`);
+        console.log(`Mixer current status:\n\nID: ${data.id}\nState: ${data.state}\nSpeed Level: ${data.speedLevel}`);
     })
     .catch(error => alert(`${error.message}`));
 }
-
-/*function stopMixer() {
-    const id = 1; // Replace with the actual ID you want to stop
-    fetch(`${baseUrl}/mixer/stop/${id}`, {
-        method: 'POST',
-    })
-    .then(() => alert('Mixer stopped'))
-    .catch(error => console.error('Error:', error));
-}*/
 
 function stopMixer() {
     const id = 1; // Replace with the actual ID you want to stop
@@ -145,17 +97,6 @@ function stopMixer() {
     })
     .catch(error => alert(error.message));
 }
-
-/* function startMicrowave() {
-    const temperature = document.getElementById('microwaveTemperature').value;
-    const timer = document.getElementById('microwaveTimer').value;
-    fetch(`${baseUrl}/microwave/start?temperature=${temperature}&timer=${timer}`, {
-        method: 'POST',
-    })
-    .then(response => response.json())
-    .then(data => alert(`Microwave started: ${JSON.stringify(data)}`))
-    .catch(error => console.error('Error:', error));
-} */
 
 function startMicrowave() {
     const temperature = document.getElementById('microwaveTemperature').value;
@@ -184,19 +125,10 @@ function startMicrowave() {
 		        return response.json();
 	})
     .then(data => {
-        alert(`Microwave started!\n\nID: ${data.id}\nState: ${data.state}\nTemperature: ${data.temperature}°C\nTimer: ${data.timer} mins`);
+        console.log(`Microwave current status:\n\nID: ${data.id}\nState: ${data.state}\nTemperature: ${data.temperature}°C\nTimer: ${data.timer} mins`);
     })
     .catch(error => alert(`${error.message}`));
 }
-
-/*function stopMicrowave() {
-    const id = 1; // Replace with the actual ID you want to stop
-    fetch(`${baseUrl}/microwave/stop/${id}`, {
-        method: 'POST',
-    })
-    .then(() => alert('Microwave stopped'))
-    .catch(error => console.error('Error:', error));
-}*/
 
 function stopMicrowave() {
     const id = 1; // Replace with the actual ID you want to stop
@@ -213,17 +145,6 @@ function stopMicrowave() {
     })
     .catch(error => alert(error.message));
 }
-
-/* function startRiceCooker() {
-    const mode = document.getElementById('riceCookerMode').value;
-    fetch(`${baseUrl}/ricecooker/start?mode=${mode}`, {
-        method: 'POST',
-    })
-    .then(response => response.json())
-    .then(data => alert(`Rice Cooker started: ${JSON.stringify(data)}`))
-    .catch(error => console.error('Error:', error));
-} */
-
 
 function startRiceCooker() {
     const mode = document.getElementById('riceCookerMode').value;
@@ -245,22 +166,13 @@ function startRiceCooker() {
 		        return response.json();
 		    })
     .then(data => {
-        alert(`Rice Cooker started!\n\nID: ${data.id}\nState: ${data.state}\nMode: ${data.mode}`);
+        console.log(`Rice Cooker current status:\n\nID: ${data.id}\nState: ${data.state}\nMode: ${data.mode}`);
     })
     .catch(error => alert(`${error.message}`));
 }
 
-/*function stopRiceCooker() {
-    const id = 1; 
-    fetch(`${baseUrl}/riceCooker/stop/${id}`, {
-        method: 'POST',
-    })
-    .then(() => alert('Rice Cooker stopped'))
-    .catch(error => console.error('Error:', error));
-}*/
-
 function stopRiceCooker() {
-    const id = 1; // Replace with the actual ID you want to stop
+    const id = 1; 
     fetch(`${baseUrl}/riceCooker/stop/${id}`, {
         method: 'POST',
     })
@@ -296,7 +208,7 @@ stompClient.connect({}, function (frame) {
 	
 	// Subscribe to microwave timer updates
 	stompClient.subscribe('/topic/riceCookerTimer', function (message) {
-		document.getElementById('ricecooker-timer').textContent = `Ricecooker Timer: ${message.body}`;
+		document.getElementById('ricecooker-timer').textContent = `Rice Cooker Timer: ${message.body}`;
 	});
 	
 	// Subscribe to microwave timer updates
@@ -334,9 +246,60 @@ stompClient.connect({}, function (frame) {
         var riceCooker = JSON.parse(message.body);
         document.getElementById('riceCookerStatus').innerHTML = 'Rice Cooker State: ' + riceCooker.state;
     });
+	
+	// Coffee Maker Usage Count
+	stompClient.subscribe('/topic/coffeeMakerUsage', function (message) {
+		var usageCount = message.body;
+	    document.getElementById('CoffeeMakerUsageCount').innerText = 'Usage Count: ' + usageCount;
+	});	
+	
+	// Microwave Usage Count
+	stompClient.subscribe('/topic/microwaveUsage', function (message) {
+		var usageCount = message.body;
+	    document.getElementById('MicrowaveUsageCount').innerText = 'Usage Count: ' + usageCount;
+	});	
+	
+	// Mixer Usage Count
+	stompClient.subscribe('/topic/mixerUsage', function (message) {
+		var usageCount = message.body;
+	    document.getElementById('MixerUsageCount').innerText = 'Usage Count: ' + usageCount;
+	});	
+	
+	// Rice Cooker Usage Count
+	stompClient.subscribe('/topic/riceCookerUsage', function (message) {
+		var usageCount = message.body;
+	    document.getElementById('RiceCookerUsageCount').innerText = 'Usage Count: ' + usageCount;
+	});	
+	
+	// Coffee Maker Available Resource Count
+	stompClient.subscribe('/topic/coffeeMakerWaterResource', function (message) {
+		var resourceStatus = message.body;
+	    document.getElementById('CoffeeMakerWaterResource').innerText = 'Water Level: ' + resourceStatus;
+	});	
+	
+	// Rice Cooker Usage Count
+	stompClient.subscribe('/topic/coffeeMakerCGResource', function (message) {
+		var resourceStatus = message.body;
+	    document.getElementById('CoffeeMakerCGResource').innerText = 'Coffee Ground: ' + resourceStatus;
+	});	
+	
+	
+	
 });
 
 // Request current state (optional)
 function requestApplianceState(appliance) {
     stompClient.send(`/app/${appliance}`, {}, {});
 }
+
+// Function to show the popup
+function showPopup() {
+    document.getElementById("popupOverlay").style.display = "flex";
+}
+
+// Function to hide the popup
+function hidePopup() {
+    document.getElementById("popupOverlay").style.display = "none";
+}
+
+

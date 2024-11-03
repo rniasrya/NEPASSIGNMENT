@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microwave</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+	<script src="/js/script.js" defer></script>
+</head>
+<body>
+	
+	<div class="background-bar">
+	    <a href="index.html">Connected Kitchen Appliances</a>
+	</div>
+		
+	<div class="appliance" id="microwave">
+	    <h2>Microwave</h2>
+	    
+	    <img src="/images/Microwave.png" alt="Microwave" class="appliance-image">
+
+		<!-- Temperature input -->
+	    <div class="input-group brew-strength-label">
+	        <label for="microwaveTemperature" >Temperature (°C):</label>   
+			<div class="input-container">
+			 <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1" required>
+			</div>
+		  </div>
+	    
+		  <!-- Timer input -->
+	    <div class="input-group brew-strength-label">
+	        <label for="microwaveTimer">Timer (minutes):</label>
+			<div class="input-container">   
+			 <input type="number" id="microwaveTimer" placeholder="Timer (minutes)" min="1" required>
+			 </div>
+		 </div>
+
+		<!-- Start/Stop buttons -->
+	    <div class="button-group">
+	        <button onclick="startMicrowave()">Start Heating</button>
+	        <button onclick="stopMicrowave()">Stop Heating</button>
+	    </div>
+	    
+		<!-- Status Section -->
+		<div class="status-container">
+		    <div id="microwave-timer">Microwave Timer: 00:00</div>
+		    <div id="MicrowaveUsageCount" class="status-item">
+		        <span class="status-title">Usage Count:</span>
+		    </div>
+			<div id="microwaveStatus" class="status-item">
+				<span class="status-title">Microwave State:</span>
+		 	</div>
+		</div>
+		</div>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mixer</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+	<script src="/js/script.js" defer></script>
+</head>
+<body>
+	
+	<div class="background-bar">
+	    <a href="index.html">Connected Kitchen Appliances</a>
+	</div>
+		
+	<div class="appliance" id="mixer">
+		<h2>Mixer</h2>
+			<img src="/images/Mixer.png" alt="Microwave" class="appliance-image">
+
+	<!-- Speed level input -->
+	<div class="input-group">
+		<label for="mixerSpeed">Speed Level:</label>
+		<div class="input-container">
+		<input type="number" id="mixerSpeed" placeholder="Speed Level (1-5)" min="1" max="5" required>
+		</div>
+	</div>
+
+	<!-- Start/Stop buttons -->
+	<div class="button-group">
+		<button onclick="startMixer()">Start Mixing</button>
+		<button onclick="stopMixer()">Stop Mixing</button>
+	</div>
+				 
+	<!-- Status Section -->
+	<div class="status-container">
+		<div id="mixer-timer">Mixer Timer: 00:00</div>
+		<div id="MixerUsageCount" class="status-item">
+			<span class="status-title">Usage Count:</span>
+		</div>
+		<div id="mixerStatus" class="status-item">
+			<span class="status-title">Mixer State:</span>
+		</div>
+		</div>
+	</div>
+</body>
+</html>

@@ -1,7 +1,12 @@
 package com.nep.connectedkitchenapp.service;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +24,10 @@ import com.nep.connectedkitchenapp.respository.RiceCookerRepository;
 @Service
 public class MixerService {
 	
+	private Mixer currentMixer;
+	
+	private ApplianceSocketServer socketServer;
+	
 	@Autowired
     private MixerRepository mixerRepository;
 	
@@ -32,54 +41,87 @@ public class MixerService {
 	@Lazy
     @Autowired
     private RiceCookerService riceCookerService;
-	
-	private Mixer currentMixer;
-	
-	@Autowired
-    private SimpMessagingTemplate messagingTemplate;
-	
-	private ScheduledExecutorService scheduler;
 
+	@Autowired
+	private SimpMessagingTemplate messagingTemplate; // Message template for WebSocket communication
+	
+	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
+    
+    private ScheduledFuture<?> mixingTask; // Stores the mixing task for cancellation or modification
+    
 	public MixerService(MixerRepository mixerRepository, SimpMessagingTemplate messagingTemplate) {
-        this.mixerRepository = mixerRepository;
+		this.socketServer = new ApplianceSocketServer(); // Initialize socket server
+		this.mixerRepository = mixerRepository;
         this.messagingTemplate = messagingTemplate;
-        this.scheduler = Executors.newScheduledThreadPool(1); // Initialize the scheduler
     }
 	
+    // Sends a message via socket communication
+	private void sendSocketMessage(String message) {
+        try (Socket socket = new Socket("localhost", 5000);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             
+            out.println(message);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+	
+	// Starts the mixing process
     public Mixer startMixing(int speedLevel) {
     	currentMixer = mixerRepository.findLatestMixer();
     	
+    	// Check if mixer is currently running
     	if (currentMixer != null && "ON".equals(currentMixer.getState())) {
     		throw new ApplianceConflictException("Mixer is already running.");
     	}
+    	
     	// Check if any other appliance is currently on
         if (coffeeMakerService.isCoffeeMakerOn() || microwaveService.isMicrowaveOn() || riceCookerService.isRiceCookerOn()) {
             throw new ApplianceConflictException("Another appliance is currently on. Please turn it off before starting the mixer.");
         }
         
+        // Initialize mixer if it's new or or has been reset yet 
         if (currentMixer == null) {
         	currentMixer = new Mixer();
         }
         
+        // Set up unique session, usage count, and state
+        currentMixer.setUsageCount(currentMixer.getUsageCount() + 1); 
+        String sessionId = UUID.randomUUID().toString();
+        currentMixer.setSessionId(sessionId);
         
+        // Send usage updates
+        messagingTemplate.convertAndSend("/topic/mixerUsage", currentMixer.getUsageCount());        
+        
+        // Set up mixing properties and notify
         currentMixer.setState("ON");
         currentMixer.setSpeedLevel(speedLevel);
-        
         int mixingTime = getMixingTime();
-        
         currentMixer.setMixingTime(mixingTime);
         currentMixer.setRemainingTime(mixingTime);
-        
-        //return mixerRepository.save(mixer);
-        
+                
         notifyAppliances("Mixer is now running.");
+		notifyAppliances("Mixer current status:" + "\n\nID: " + currentMixer.getId() + "\n" + "State: " + currentMixer.getState() + "\nSpeed Level: " + currentMixer.getSpeedLevel());
         
-        scheduler.schedule(() -> stopMixing(currentMixer.getId()), mixingTime, TimeUnit.SECONDS);
+		sendSocketMessage("Mixer start");
+		sendSocketMessage("Mixer session ID: " + sessionId);
+		sendSocketMessage("Mixer is now running at " + currentMixer.getSpeedLevel() + " speed level for " + currentMixer.getMixingTime() + " seconds.");
+		sendSocketMessage("Mixer Usage Count: " + currentMixer.getUsageCount());
+		
+		// Mixer state in the UI
+		messagingTemplate.convertAndSend("/topic/mixer", currentMixer);
+		
+		if (mixingTask != null && !mixingTask.isDone()) {
+			mixingTask.cancel(false);
+        }
+		
+		// Schedule the mixing to stop automatically after set time
+		mixingTask = scheduler.schedule(() -> stopMixing(currentMixer.getId()), mixingTime, TimeUnit.SECONDS);
         
-        // Schedule to start mixer after rice cooker
+		// Schedule regular updates for remaining mixing time
         scheduler.scheduleAtFixedRate(this::updateMixingTime, 0, 1, TimeUnit.SECONDS);
         
-        messagingTemplate.convertAndSend("/topic/mixer", currentMixer);
+        // Save state in repository
         return mixerRepository.save(currentMixer);
     }
     
@@ -87,25 +129,23 @@ public class MixerService {
         int remainingTime = currentMixer.getRemainingTime();
 
         if (remainingTime > 0) {
-            remainingTime--; // Decrement the remaining time
+            remainingTime--; 
             currentMixer.setRemainingTime(remainingTime);
             mixerRepository.save(currentMixer);
 
-            // Send the updated brewing time to the UI
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
             
-			System.out.println("Mixer Timer: " + timeFormatted);
+            sendSocketMessage("Mixer Timer: " + timeFormatted);
 
             messagingTemplate.convertAndSend("/topic/mixerTimer", timeFormatted);
         } else {
-        	System.out.println("Mixer has finished.");
+        	sendSocketMessage("Mixer has finished.");
             notifyAppliances("Mixer has finished.");
-			
-            stopMixing(currentMixer.getId()); 
+            
+            stopMixing(currentMixer.getId());                
         }
-        
     }
 
     public void stopMixing(Long id) {
@@ -114,27 +154,30 @@ public class MixerService {
         if (!mixer.getState().equals("ON")) {
             throw new IllegalStateException("Mixer is already OFF.");
         }
-        
+                
         mixer.setState("OFF");
         mixerRepository.save(mixer);
         messagingTemplate.convertAndSend("/topic/mixer", mixer);
         
-        notifyAppliances("Mixer has stopped.");
+        sendSocketMessage("Mixer stop");
+        System.out.println("Mixer stop");
     }
     
     private int getMixingTime() {
-    	return 10;
+    	return 15;
     }
 
+    // Gets the latest mixer state
 	public Mixer getMixerState() {
 		return mixerRepository.findLatestMixer();
 	}
 	
-	
+	// Sends a message to notify all appliances
 	private void notifyAppliances(String message) {
         messagingTemplate.convertAndSend("/topic/applianceStatus", message);
     }
 	
+	// Checks if mixer is currently mixing
 	public boolean isMixerOn() {
 		return mixerRepository.findAll().stream()
 				.anyMatch(mixer -> "ON".equals(mixer.getState()));

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Maker</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+		   <script src="/js/script.js" defer></script>
+</head>
+<body>
+	
+	<div class="background-bar">
+	    <a href="index.html">Connected Kitchen Appliances</a>
+	</div>
+	
+	<div class="appliance" id="coffeeMaker">
+	    <h2>Coffee Maker</h2>
+		<img src="/images/CoffeeMaker.png" alt="Coffee Maker" class="appliance-image">
+			
+		<!-- Brew Strength Options -->
+		<div class="brew-options">
+			<label for="brewStrength" class="brew-strength-label">Brew Strength:</label>
+			<select id="brewStrength" class="brew-strength-select" required>
+				<option value="Mild">Mild</option>
+			    <option value="Medium">Medium</option>
+			    <option value="Strong">Strong</option>
+			</select>
+		</div>
+
+		<!-- Brewing Control Buttons -->
+		<div class="brewing-controls">
+			<button onclick="startCoffeeMaker()">Start Brewing</button>
+			<button onclick="stopCoffeeMaker()">Stop Brewing</button>
+			<button onclick="refillCoffeeMaker()">Refill</button>
+		</div>
+						
+		<!-- Status Section -->
+		<div class="status-container">
+			<div id="brewing-timer">Brewing Timer: 00:00</div>
+			<div id="CoffeeMakerWaterResource" class="status-item">
+				<span class="status-title">Water Level:</span>
+			</div>
+			<div id="CoffeeMakerCGResource" class="status-item">
+				<span class="status-title">Coffee Grounds:</span>
+			</div>
+			<div id="CoffeeMakerUsageCount" class="status-item">
+				<span class="status-title">Usage Count:</span>
+			</div>
+			<div id="coffeeMakerStatus" class="status-item">
+				<span class="status-title">Coffee Maker State:</span>
+			</div>
+			</div>
+		</div>
+</body>
+
+</html>

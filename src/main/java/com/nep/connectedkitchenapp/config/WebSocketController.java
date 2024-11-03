@@ -34,25 +34,25 @@ public class WebSocketController {
     @MessageMapping("/coffeeMaker")
     @SendTo("/topic/coffeeMaker")
     public CoffeeMaker getCoffeeMakerState() {
-        return coffeeMakerService.getCoffeeMakerState(); // Implement this method in CoffeeMakerService
+        return coffeeMakerService.getCoffeeMakerState(); 
     }
     
     @MessageMapping("/microwave")
     @SendTo("/topic/microwave")
     public Microwave getMicrowaveState() {
-        return microwaveService.getMicrowaveState(); // Implement this method in CoffeeMakerService
+        return microwaveService.getMicrowaveState(); 
     }
     
     @MessageMapping("/mixer")
     @SendTo("/topic/mixer")
     public Mixer getMixerState() {
-        return mixerService.getMixerState(); // Implement this method in CoffeeMakerService
+        return mixerService.getMixerState(); 
     }
     
     @MessageMapping("/riceCooker")
     @SendTo("/topic/riceCooker")
     public RiceCooker getRiceCookerState() {
-        return riceCookerService.getriceCookerState(); // Implement this method in CoffeeMakerService
+        return riceCookerService.getriceCookerState(); 
     }
     
     

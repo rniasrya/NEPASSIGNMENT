@@ -11,7 +11,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(ApplianceConflictException.class)
     public ResponseEntity<String> handleApplianceConflict(ApplianceConflictException ex) {
         return ResponseEntity
-                .status(HttpStatus.CONFLICT) // You can choose a more suitable status
-                .body(ex.getMessage()); // Return just the message
+                .status(HttpStatus.CONFLICT) 
+                .body(ex.getMessage()); 
     }
 }

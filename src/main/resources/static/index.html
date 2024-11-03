@@ -5,58 +5,66 @@
     <title>Connected Kitchen IoT</title>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+	<script src="/js/script.js" defer></script>
 </head>
 <body>
-	<h1>Connected Kitchen Appliances</h1>
+				
+	<div class="background-bar">
+		<a href="index.html">Connected Kitchen Appliances</a>
+	</div>
+						
+	<div class="big-image" onclick="showPopup()">
+		<img src="/images/home.png" alt="Connected Kitchen" class="large-img">
+	</div>
 
-	    <div class="appliance" id="coffeeMaker">
-	        <h2>Coffee Maker</h2>
-			<label for="brewStrength">Brew Strength:</label>
-			<select id="brewStrength" required>
-			    <option value="Mild">Mild</option>
-			    <option value="Medium">Medium</option>
-			    <option value="Strong">Strong</option>
-			</select>
-	        <button onclick="startCoffeeMaker()">Start Brewing</button>
-	        <button onclick="stopCoffeeMaker()">Stop Brewing</button>
-			<div id="brewing-timer">Brewing Timer: 00:00</div>
-			<div id="coffeeMakerStatus"></div>
-	    </div>
+	<!-- Popup Structure -->
+	<div id="popupOverlay" class="popup-overlay">
+	<div class="popup-box">
+		<p>Choose your appliances down below</p>
+		<button class="close-bn" onclick="hidePopup()">Close</button>
+	</div>
+	</div>
 
-	    <div class="appliance" id="microwave">
-	        <h2>Microwave</h2>
-	        <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1" required>
-	        <input type="number" id="microwaveTimer" placeholder="Timer (minutes)" min="1" required>
-	        <button onclick="startMicrowave()">Start Heating</button>
-	        <button onclick="stopMicrowave()">Stop Heating</button>
-			<div id="microwave-timer">Microwave Timer: 00:00</div>
-			<div id="microwaveStatus"></div>
-	    </div>
+	<!-- Appliances Section -->
+	<div class="appliance-grid">
 		
-		<div class="appliance" id="mixer">
-			 <h2>Mixer</h2>
-			 <input type="number" id="mixerSpeed" placeholder="Speed Level (1-5)" min="1" max="5" required>
-			 <button onclick="startMixer()">Start Mixing</button>
-			 <button onclick="stopMixer()">Stop Mixing</button>
-			 <div id="mixer-timer">Mixer Timer: 00:00</div>
-			 <div id="mixerStatus"></div>
-		</div>
-
-	    <div class="appliance" id="riceCooker">
-	        <h2>Rice Cooker</h2>
-	        <select id="riceCookerMode" required>
-	            <option value="Rice">Rice</option>
-	            <option value="Steam">Steam</option>
-	            <option value="Warm">Warm</option>
-	        </select>
-	        <button onclick="startRiceCooker()">Start Cooking</button>
-	        <button onclick="stopRiceCooker()">Stop Cooking</button>
-			<div id="ricecooker-timer">Ricecooker Timer: 00:00</div>
-			<div id="riceCookerStatus"></div>
-	    </div>
-		
-		<br>
-		
-	    <script src="script.js"></script>
+	<!-- Coffee Maker -->
+	<div class="appliance-item">
+		<a href="CoffeeMaker.html">
+			<img src="/images/CoffeeMaker.png" alt="Coffee Maker" class="appliance-image">
+		</a>
+		<h3 class="appliance-name">Coffee Maker</h3>
+			<p class="appliance-description">Brew coffee to your preferred strength, anytime you like.</p>
+	</div>
+					
+	<!-- Microwave -->
+	<div class="appliance-item">
+		<a href="microwave.html">
+			<img src="/images/Microwave.png" alt="Microwave" class="appliance-image">
+		</a>
+		<h3 class="appliance-name">Microwave</h3>
+			<p class="appliance-description">Quickly heat up meals with preset and customizable options.</p>
+	</div>
+					
+	<!-- Mixer -->
+	<div class="appliance-item">
+		<a href="Mixer.html">
+			<img src="/images/Mixer.png" alt="Mixer" class="appliance-image">
+		</a>
+		<h3 class="appliance-name">Mixer</h3>
+			<p class="appliance-description">Blend your favorite smoothies, shakes, and sauces in seconds.</p>
+	</div>
+					
+	<!-- Rice Cooker -->
+	<div class="appliance-item">
+		<a href="RiceCooker.html">
+			<img src="/images/RiceCooker.png" alt="Rice Cooker" class="appliance-image">
+		</a>
+		<h3 class="appliance-name">Rice Cooker</h3>
+			<p class="appliance-description">Quickly heat up meals with preset and customizable options.</p>
+	</div>
+	</div>		
+	
 </body>
 </html>

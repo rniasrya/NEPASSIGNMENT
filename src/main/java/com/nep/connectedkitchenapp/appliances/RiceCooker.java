@@ -11,13 +11,13 @@ public class RiceCooker {
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String state;       // ON or OFF
-    private String mode;        // Cooking mode (e.g., "Rice", "Warm", "Steam")
+    private String state;     
+    private String mode;        
     private int cookingTime;
     private int remainingTime;
+    private int usageCount; 
+    private String sessionId;
     
-
-	// Getters and Setters
     public Long getId() { 
     	return id; 
     }
@@ -57,4 +57,22 @@ public class RiceCooker {
     public void setRemainingTime(int remainingTime) {
     	this.remainingTime = remainingTime;
     }
+
+	public int getUsageCount() {
+		return usageCount;
+	}
+
+	public void setUsageCount(int usageCount) {
+		this.usageCount = usageCount;
+	}
+
+	public String getSessionId() {
+		return sessionId;
+	}
+
+	public void setSessionId(String sessionId) {
+		this.sessionId = sessionId;
+	}
+    
+    
 }

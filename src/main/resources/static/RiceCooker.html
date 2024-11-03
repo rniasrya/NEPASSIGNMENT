@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RiceCooker</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+	<link rel="stylesheet" href="/css/style.css">
+	<script src="/js/script.js" defer></script>
+</head>
+<body>
+	
+	<div class="background-bar">
+	    <a href="index.html">Connected Kitchen Appliances</a>
+	</div>
+		
+	<div class="appliance" id="riceCooker">
+	        <h2>Rice Cooker</h2>
+			<img src="/images/RiceCooker.png" alt="Microwave" class="appliance-image">
+
+		<!-- Mode input -->	
+		<div class="input-group">
+			<label for="riceCookerMode">Cooking Mode:</label>
+	        <select id="riceCookerMode" required>
+	            <option value="Rice">Rice</option>
+	            <option value="Steam">Steam</option>
+	            <option value="Warm">Warm</option>
+	        </select>
+		</div>	
+			
+		<!-- Start/Stop button -->	
+		<div class="button-group">
+		     <button onclick="startRiceCooker()">Start Cooking</button>
+		     <button onclick="stopRiceCooker()">Stop Cooking</button>
+		</div>
+				
+		<!-- Status Section -->
+		<div class="status-container">
+		    <div id="ricecooker-timer">Rice Cooker Timer: 00:00</div>
+		    <div id="RiceCookerUsageCount" class="status-item">
+		        <span class="status-title">Usage Count:</span>
+		    </div>
+			<div id="riceCookerStatus" class="status-item">
+				<span class="status-title">Ricecooker State:</span>
+			</div>
+		</div>
+	
+		
+	    </div>
+</body>
+</html>

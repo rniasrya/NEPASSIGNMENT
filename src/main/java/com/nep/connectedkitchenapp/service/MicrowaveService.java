@@ -1,7 +1,12 @@
 package com.nep.connectedkitchenapp.service;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,39 +22,12 @@ import com.nep.connectedkitchenapp.respository.MicrowaveRepository;
 @Service
 public class MicrowaveService {
 	
-	/*@Autowired
-    private MicrowaveRepository microwaveRepository;
+	private Microwave currentMicrowave;
 	
-	@Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
-	public Microwave startHeating(int temperature, int timer) {
-		Microwave microwave = new Microwave();
-		microwave.setState("ON");
-		microwave.setTemperature(temperature);
-		microwave.setTimer(timer);
-		
-		messagingTemplate.convertAndSend("/topic/microwave", microwave);
-		return microwaveRepository.save(microwave);
-        //return microwave;
-	}
-	
-    public void stopHeating(Long id) {
-        Microwave microwave = microwaveRepository.findById(id).orElseThrow();
-        microwave.setState("OFF");
-        
-        microwaveRepository.save(microwave);
-        messagingTemplate.convertAndSend("/topic/microwave", microwave);
-    }
-
-	public Microwave getMicrowaveState() {
-		return microwaveRepository.findLatestMicrowave();
-	}*/
+	private ApplianceSocketServer socketServer;
 	
 	private final MicrowaveRepository microwaveRepository;
 	
-    private final SimpMessagingTemplate messagingTemplate;
-
     @Lazy
     @Autowired
     private CoffeeMakerService coffeeMakerService;
@@ -60,56 +38,89 @@ public class MicrowaveService {
 
     @Autowired
     private RiceCookerService riceCookerService;
-
-    private ScheduledExecutorService scheduler;
-    
-    private Microwave currentMicrowave;
     
     private String brewStrength;
-	
+    
+    private final SimpMessagingTemplate messagingTemplate; // Message template for WebSocket communication
+    
+    private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
+    
+    private ScheduledFuture<?> heatingTask; // Stores the heating task for cancellation or modification
+    
     @Autowired
     public MicrowaveService(MicrowaveRepository microwaveRepository, SimpMessagingTemplate messagingTemplate, CoffeeMakerService coffeeMakerService) {
-        this.microwaveRepository = microwaveRepository;
+    	this.socketServer = new ApplianceSocketServer(); // Initialize socket server
+    	this.microwaveRepository = microwaveRepository;
         this.messagingTemplate = messagingTemplate;
-        this.scheduler = Executors.newScheduledThreadPool(1); // Initialize the scheduler once
+    }
+    
+    // Sends a message via socket communication
+    private void sendSocketMessage(String message) {
+        try (Socket socket = new Socket("localhost", 5000);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             
+            out.println(message);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
+    // Starts the heating process
 	public Microwave startHeating(int temperature, int timer) {
-    	// Retrieve the latest coffee maker state
+    	// Retrieve the latest microwave state
 		currentMicrowave = microwaveRepository.findLatestMicrowave();
 		
+		// Check if the microwave is already running
+		if (currentMicrowave != null && "ON".equals(currentMicrowave.getState())) {
+			throw new ApplianceConflictException("Microwave is already ON.");
+		}
+		
+		// Check if other appliances are running
 		if (coffeeMakerService.isCoffeeMakerOn() || mixerService.isMixerOn() || riceCookerService.isRiceCookerOn()) {
             throw new ApplianceConflictException("Another appliance is currently on. Please turn it off before starting the microwave.");
         }
 		
-		// Check if the microwave is already running
-		if (currentMicrowave != null && "ON".equals(currentMicrowave.getState())) {
-	        throw new ApplianceConflictException("Microwave is already ON.");
-	    }
-		
-		// Initialize and start Microwave if it is OFF
+    	// Initialize microwave if it’s new or has been reset
 		if (currentMicrowave  == null) {
 			currentMicrowave  = new Microwave();
 		}
 		
+		// Set up unique session, usage count, and state
+		currentMicrowave.setUsageCount(currentMicrowave.getUsageCount() + 1); 
+        String sessionId = UUID.randomUUID().toString();
+        currentMicrowave.setSessionId(sessionId);
+        
+        // Send usage updates
+        messagingTemplate.convertAndSend("/topic/microwaveUsage", currentMicrowave.getUsageCount());
+		
+        // Set up heating properties and notify
 		currentMicrowave.setState("ON");
 		currentMicrowave.setTemperature(temperature);
 		currentMicrowave.setTimer(timer);
 		currentMicrowave.setRemainingTime(timer * 60);
 		
-		// Notify the user that it is starting to run
 		notifyAppliances("Microwave is now running.");
+		notifyAppliances("Microwave current status:" + "\n\nID: " + currentMicrowave.getId() + "\n" + "State: " + currentMicrowave.getState() + "\nTemperature: " + currentMicrowave.getTemperature() + "°C" + "\nDuration: " + currentMicrowave.getTimer()  + " mins");
 		
-		// Start a scheduled executor to decrease remaining time
-	    scheduler = Executors.newScheduledThreadPool(1);
-	    
-	    // Start a scheduled executor to decrease remaining time
-	    scheduler.schedule(() -> stopHeating(currentMicrowave.getId()), timer, TimeUnit.MINUTES);
+		sendSocketMessage("Microwave start");
+		sendSocketMessage("Microwave session ID: " + sessionId);
+		sendSocketMessage("Microwave is now running at " + currentMicrowave.getTemperature() + "°C for " + currentMicrowave.getTimer() + " minutes.");
+		sendSocketMessage("Microwave Usage Count: " + currentMicrowave.getUsageCount());
 
-	    // Schedule the remaining time update
+		// Microwave state in the UI
+		messagingTemplate.convertAndSend("/topic/microwave", currentMicrowave);
+			    
+		if (heatingTask != null && !heatingTask.isDone()) {
+            heatingTask.cancel(false);
+        }
+		
+		// Schedule the heating to stop automatically after set time
+	    heatingTask = scheduler.schedule(() -> stopHeating(currentMicrowave.getId()), timer, TimeUnit.MINUTES);
+
+	    // Schedule regular updates for remaining heating time
 	    scheduler.scheduleAtFixedRate(this::updateRemainingTime, 0, 1, TimeUnit.SECONDS);
         
-	    messagingTemplate.convertAndSend("/topic/microwave", currentMicrowave.getState());
+	    // Save state in repository
         return microwaveRepository.save(currentMicrowave);
 	}
 	
@@ -117,7 +128,7 @@ public class MicrowaveService {
 		int remainingTime = currentMicrowave.getRemainingTime();
 		
 		if (remainingTime > 0) {
-			remainingTime--; // Decrement the remaining time
+			remainingTime--; 
 			currentMicrowave.setRemainingTime(remainingTime);
 			microwaveRepository.save(currentMicrowave);
 			
@@ -125,35 +136,18 @@ public class MicrowaveService {
 			int seconds = remainingTime % 60;
 			String timeFormatted = String.format("%02d:%02d", minutes, seconds);
 			
-			System.out.println("Microwave Timer: " + timeFormatted);
+			sendSocketMessage("Microwave Timer: " + timeFormatted);
 			
 			messagingTemplate.convertAndSend("/topic/microwaveTimer", timeFormatted);
 		} else {
-			System.out.println("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
-			
+			sendSocketMessage("Coffee Maker will start brewing in 10 seconds.");
 			notifyAppliances("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
 			
-			//messagingTemplate.convertAndSend("/topic/applianceStatus", "Microwave has finished. Coffee Maker will start brewing in 10 seconds.");
-	        
 			String brewStrength = "Medium";
 			
-			scheduler = Executors.newScheduledThreadPool(1); // Re-initialize scheduler
 	        scheduler.schedule(() -> coffeeMakerService.startBrewing(brewStrength), 10, TimeUnit.SECONDS);
 			
-	        stopHeating(currentMicrowave.getId());
-	        // Shut down the scheduler
-            if (scheduler != null && !scheduler.isShutdown()) {
-                scheduler.shutdown();
-                stopHeating(currentMicrowave.getId());                
-            } 
-            
-            // Stop heating the microwave
-            
-			// Schedule coffee maker start in 5 seconds
-	        //messagingTemplate.convertAndSend("/topic/applianceStatus", "Microwave has finished. Coffee Maker will start brewing in 10 seconds.");
-	        //scheduler = Executors.newScheduledThreadPool(1); // Re-initialize scheduler
-	        //scheduler.schedule(() -> coffeeMakerService.startBrewing(), 10, TimeUnit.SECONDS);
-			
+            stopHeating(currentMicrowave.getId());                
 		}
 	}
 	
@@ -163,22 +157,13 @@ public class MicrowaveService {
 		if (!microwave.getState().equals("ON")) {
 			throw new IllegalStateException("Microwave is already OFF.");
 		}
-		
+				
 		microwave.setState("OFF");
 		microwaveRepository.save(microwave);
+		messagingTemplate.convertAndSend("/topic/microwave", microwave);
 		
-		//isRunning = false;
-		//notifyAppliances("Microwave has stopped.");
-		//messagingTemplate.convertAndSend("/topic/microwave", microwave);
-		notifyAppliances("Microwave has stopped.");
 		System.out.println("Microwave has stopped.");
-		//messagingTemplate.convertAndSend("/topic/microwave", microwave);
-		//messagingTemplate.convertAndSend("/topic/microwave", "Mirowave has stopped.");
-		
-		// Shut down the scheduler
-		//if (scheduler != null && !scheduler.isShutdown()) {
-			//scheduler.shutdown();
-		//}
+		sendSocketMessage("Microwave stop");
 		
 	}
 	
@@ -188,19 +173,20 @@ public class MicrowaveService {
         return microwave.getRemainingTime();
     }
 
-
+    // Gets the latest microwave state
 	public Microwave getMicrowaveState() {
 		return microwaveRepository.findLatestMicrowave();
 	}
 
-	
+	// Sends a message to notify all appliances
 	private void notifyAppliances(String message) {
         messagingTemplate.convertAndSend("/topic/applianceStatus", message);
     }
 	
+	// Checks if microwave is currently heating
 	public boolean isMicrowaveOn() {
 		// Retrieve the latest microwave record and check its state
-		Microwave microwave = microwaveRepository.findLatestMicrowave(); // Implement this in MicrowaveRepository
+		Microwave microwave = microwaveRepository.findLatestMicrowave();
 		return microwave != null && "ON".equals(microwave.getState());
 	}
 }

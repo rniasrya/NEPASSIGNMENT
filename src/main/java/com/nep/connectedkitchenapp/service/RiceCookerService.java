@@ -1,7 +1,12 @@
 package com.nep.connectedkitchenapp.service;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +24,10 @@ import com.nep.connectedkitchenapp.respository.RiceCookerRepository;
 @Service
 public class RiceCookerService {
 	
+	private RiceCooker currentRiceCooker;
+	
+	private ApplianceSocketServer socketServer;
+	
 	@Autowired
     private RiceCookerRepository riceCookerRepository;
 	
@@ -34,56 +43,87 @@ public class RiceCookerService {
     @Autowired
     private MixerService mixerService;
     
-    private ScheduledExecutorService scheduler;
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate; // Message template for WebSocket communication
     
-    private RiceCooker currentRiceCooker;
-	
-	@Autowired
-    private SimpMessagingTemplate messagingTemplate;
+    private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
+    
+    private ScheduledFuture<?> cookingTask; // Stores the cooking task for cancellation or modification
 	
 	@Autowired
     public RiceCookerService(RiceCookerRepository riceCookerRepository, SimpMessagingTemplate messagingTemplate) {
-        this.riceCookerRepository = riceCookerRepository;
+		this.socketServer = new ApplianceSocketServer(); // Initialize socket server
+		this.riceCookerRepository = riceCookerRepository;
         this.messagingTemplate = messagingTemplate;
-        this.scheduler = Executors.newScheduledThreadPool(1); // Initialize the scheduler
+    }
+	
+    // Sends a message via socket communication
+	private void sendSocketMessage(String message) {
+        try (Socket socket = new Socket("localhost", 5000);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             
+            out.println(message);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
+	// Starts the cooking process
     public RiceCooker startCooking(String mode) {
-    	
     	currentRiceCooker = riceCookerRepository.findLatestriceCooker();
+    	
+    	// Check if rice cooker is already running
+    	if (currentRiceCooker != null && "ON".equals(currentRiceCooker.getState())) {
+    		throw new ApplianceConflictException("Ricecooker is already running.");
+    	}
     	
     	// Check if any other appliance is currently on
         if (coffeeMakerService.isCoffeeMakerOn() || microwaveService.isMicrowaveOn() || mixerService.isMixerOn()) {
             throw new ApplianceConflictException("Another appliance is currently on. Please turn it off before starting the rice cooker.");
         }
-    	
         
+        // Initialize rice cooker if it's new or or has been reset yet 
         if (currentRiceCooker == null) {
         	currentRiceCooker = new RiceCooker();
         }
         
-        if (currentRiceCooker != null && "ON".equals(currentRiceCooker.getState())) {
-        	throw new ApplianceConflictException("Ricecooker is already running.");
-        }
+        // Set up unique session, usage count, and state
+        currentRiceCooker.setUsageCount(currentRiceCooker.getUsageCount() + 1); 
+        String sessionId = UUID.randomUUID().toString(); 
+        currentRiceCooker.setSessionId(sessionId);
         
+        // Send usage updates
+        messagingTemplate.convertAndSend("/topic/riceCookerUsage", currentRiceCooker.getUsageCount());  
+        
+        // Set up mixing properties and notify
         currentRiceCooker.setState("ON");
         currentRiceCooker.setMode(mode);
-        
         int cookingTime = getCookingTime();
-        
         currentRiceCooker.setCookingTime(cookingTime);
         currentRiceCooker.setRemainingTime(cookingTime);
-        
-        //return riceCooker;
-        
-        notifyAppliances("Ricecooker is now running.");
                 
-	    scheduler.schedule(() -> stopCooking(currentRiceCooker.getId()), cookingTime, TimeUnit.SECONDS);
+        notifyAppliances("Ricecooker is now running.");
+        notifyAppliances("Ricecooker current status: " + "\n\nID: " + currentRiceCooker.getId() + "\n" + "State: " + currentRiceCooker.getState() + "\nMode: " + currentRiceCooker.getMode());
         
-        // Schedule to start rice cooker after brewing time
+        sendSocketMessage("Ricecooker start");
+        sendSocketMessage("Ricecooker session ID: " + sessionId);
+		sendSocketMessage("Ricecooker is set as " + currentRiceCooker.getMode() + " mode and is running for " + currentRiceCooker.getCookingTime() + " seconds.");
+		sendSocketMessage("Ricecooker Usage Count: " + currentRiceCooker.getUsageCount());
+    
+		// Rice cooker state in the UI
+		messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
+	    
+		if (cookingTask != null && !cookingTask.isDone()) {
+            cookingTask.cancel(false);
+        }
+	    
+		// Schedule the cooking to stop automatically after set time
+	    cookingTask = scheduler.schedule(() -> stopCooking(currentRiceCooker.getId()), cookingTime, TimeUnit.SECONDS);
+        
+	    // Schedule regular updates for remaining mixing time
         scheduler.scheduleAtFixedRate(this::updateCookingTime, 0, 1, TimeUnit.SECONDS);
         
-        messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
+        // Save state in repository
         return riceCookerRepository.save(currentRiceCooker);
     }
     
@@ -92,28 +132,26 @@ public class RiceCookerService {
         int remainingTime = currentRiceCooker.getRemainingTime();
 
         if (remainingTime > 0) {
-            remainingTime--; // Decrement the remaining time
+            remainingTime--; 
             currentRiceCooker.setRemainingTime(remainingTime);
             riceCookerRepository.save(currentRiceCooker);
 
-            // Send the updated brewing time to the UI
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
-            
-			System.out.println("Ricecooker Timer: " + timeFormatted);
-
+          
+            System.out.println("Ricecooker Timer: " + timeFormatted);
+            sendSocketMessage("Ricecooker Timer: " + timeFormatted);
             messagingTemplate.convertAndSend("/topic/riceCookerTimer", timeFormatted);
         } else {
-        	System.out.println("Ricecooker has finished. Mixer will start in 10 seconds.");
+        	sendSocketMessage("Mixer will start in 10 seconds.");
             notifyAppliances("Ricecooker has finished. Mixer will start in 10 seconds.");
 			
             int speed = 5;
+            	        
+            scheduler.schedule(() -> mixerService.startMixing(speed), 10, TimeUnit.SECONDS);
             
-            scheduler = Executors.newScheduledThreadPool(1); // Re-initialize scheduler
-	        scheduler.schedule(() -> mixerService.startMixing(speed), 10, TimeUnit.SECONDS);
-            
-            stopCooking(currentRiceCooker.getId()); 
+            stopCooking(currentRiceCooker.getId());                   
         }
         
     }
@@ -124,28 +162,32 @@ public class RiceCookerService {
         if (!currentRiceCooker.getState().equals("ON")) {
             throw new IllegalStateException("Rice Cooker is already OFF.");
         }
-        
+                
         currentRiceCooker.setState("OFF");
         riceCookerRepository.save(currentRiceCooker);
         messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
-        notifyAppliances("Ricecooker has now stopped.");
+        
+        sendSocketMessage("Ricecooker stop");
+        System.out.println("Ricecooker stop");
     }
 
     private int getCookingTime() {
-    	return 10;
+    	return 15;
     }
     
+    // Gets the latest rice cooker state
 	public RiceCooker getriceCookerState() {
 		return riceCookerRepository.findLatestriceCooker();
 	}
 	
-	
+	// Sends a message to notify all appliances
 	private void notifyAppliances(String message) {
         messagingTemplate.convertAndSend("/topic/applianceStatus", message);
     }
 	
+	// Checks if rice cooker is currently cooking
 	public boolean isRiceCookerOn() {
-		currentRiceCooker = riceCookerRepository.findLatestriceCooker(); // Assuming this method exists
+		currentRiceCooker = riceCookerRepository.findLatestriceCooker(); 
 		return currentRiceCooker != null && currentRiceCooker.getState().equals("ON");
 	}
 }

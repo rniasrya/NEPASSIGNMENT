@@ -12,12 +12,16 @@ public class CoffeeMaker {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
-    private String state; // "ON" or "OFF"
+    private String state;
     private int temperature;
-    private int brewTime; // Minutes
+    private int brewTime; 
     private String brewStrength;
     private int remainingTime;
-    
+    private int usageCount; 
+    private String sessionId;
+    private int waterLevel;
+    private int coffeeGroundsLevel;
+
 
 	public Long getId() {
         return id;
@@ -65,5 +69,37 @@ public class CoffeeMaker {
 
 	public void setRemainingTime(int remainingTime) {
 		this.remainingTime = remainingTime;
+	}
+
+	public int getUsageCount() {
+		return usageCount;
+	}
+
+	public void setUsageCount(int usageCount) {
+		this.usageCount = usageCount;
+	}
+
+	public String getSessionId() {
+		return sessionId;
+	}
+
+	public void setSessionId(String sessionId) {
+		this.sessionId = sessionId;
+	}
+	
+	public int getWaterLevel() {
+		return waterLevel;
+	}
+	
+	public void setWaterLevel(int waterLevel) {
+		this.waterLevel = waterLevel;
+	}
+	
+	public int getCoffeeGroundsLevel() {
+		return coffeeGroundsLevel;
+	}
+	
+	public void setCoffeeGroundsLevel(int coffeeGroundsLevel) {
+		this.coffeeGroundsLevel = coffeeGroundsLevel;
 	}
 }

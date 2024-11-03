@@ -1,6 +1,10 @@
 package com.nep.connectedkitchenapp.controller;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,4 +30,10 @@ public class CoffeeMakerController {
     public void stopBrewing(@PathVariable Long id) {
         coffeeMakerService.stopBrewing(id);
     }
+    
+    @PostMapping("/refill")
+    public CoffeeMaker refillResource() {
+        return coffeeMakerService.refillResource();
+    }
+    
 }

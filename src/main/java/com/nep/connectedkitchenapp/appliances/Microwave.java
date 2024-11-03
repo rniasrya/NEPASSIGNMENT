@@ -11,12 +11,15 @@ public class Microwave {
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String state;    
+    private int temperature;   
+    private int timer;          
+    private int remainingTime;	
+    private int usageCount; 
+    private String sessionId;
+    
 
-    private String state;       // ON or OFF
-    private int temperature;    // Temperature setting
-    private int timer;          // Timer in minutes
-    private int remainingTime;	// Time in seconds
-    public Long getId() { 
+	public Long getId() { 
     	return id; 
     }
     
@@ -56,4 +59,19 @@ public class Microwave {
     	this.remainingTime = remainingTime;
     }
     
+    public int getUsageCount() {
+    	return usageCount;
+    }
+    
+    public void setUsageCount(int usageCount) {
+    	this.usageCount = usageCount;
+    }
+    
+    public String getSessionId() {
+    	return sessionId;
+    }
+    
+    public void setSessionId(String sessionId) {
+    	this.sessionId = sessionId;
+    }
 }

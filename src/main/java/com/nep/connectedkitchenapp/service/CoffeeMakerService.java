@@ -1,7 +1,12 @@
 package com.nep.connectedkitchenapp.service;
 
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,35 +22,11 @@ import com.nep.connectedkitchenapp.respository.CoffeeMakerRepository;
 @Service
 public class CoffeeMakerService {
 	
-	/*@Autowired
-    private CoffeeMakerRepository coffeeMakerRepository;
+	private CoffeeMaker coffeeMaker = new CoffeeMaker();
+		
+	private CoffeeMaker currentCoffeeMaker;
 	
-	@Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
-    public CoffeeMaker startBrewing() {
-        CoffeeMaker coffeeMaker = new CoffeeMaker();
-        coffeeMaker.setState("ON");
-        coffeeMaker.setTemperature(90);
-        coffeeMaker.setBrewTime(5);
-        
-        //return coffeeMakerRepository.save(coffeeMaker);
-        messagingTemplate.convertAndSend("/topic/coffeeMaker", coffeeMaker);
-        //return coffeeMaker;
-        return coffeeMakerRepository.save(coffeeMaker);
-    }
-
-    public void stopBrewing(Long id) {
-        CoffeeMaker coffeeMaker = coffeeMakerRepository.findById(id).orElseThrow();
-        coffeeMaker.setState("OFF");
-        
-        coffeeMakerRepository.save(coffeeMaker);
-        messagingTemplate.convertAndSend("/topic/coffeeMaker", coffeeMaker);
-    }
-    
-    public CoffeeMaker getCoffeeMakerState() {
-        return coffeeMakerRepository.findLatestCoffeeMaker(); // Implement this query in your repository
-    } */
+	private ApplianceSocketServer socketServer;
 	
 	@Autowired
     private CoffeeMakerRepository coffeeMakerRepository;
@@ -63,65 +44,111 @@ public class CoffeeMakerService {
 	private RiceCookerService riceCookerService;
 	
 	@Autowired
-    private SimpMessagingTemplate messagingTemplate;
-	
-	private String mode;
-	
-    private ScheduledExecutorService scheduler;
+    private SimpMessagingTemplate messagingTemplate; // Messaging template for WebSocket communication
+		
+	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
     
-    private CoffeeMaker currentCoffeeMaker;
+    private ScheduledFuture<?> brewingTask; // Stores the brewing task for cancellation or modification   
     
     @Autowired
     public CoffeeMakerService(CoffeeMakerRepository coffeeMakerRepository, SimpMessagingTemplate messagingTemplate) {
-        this.coffeeMakerRepository = coffeeMakerRepository;
+    	this.socketServer = new ApplianceSocketServer(); // Initialize socket server
+    	this.coffeeMakerRepository = coffeeMakerRepository;
         this.messagingTemplate = messagingTemplate;
-        this.scheduler = Executors.newScheduledThreadPool(1); // Initialize the scheduler
     }
+    
+    // Sends a message via socket communication
+    private void sendSocketMessage(String message) {
+	    try (Socket socket = new Socket("localhost", 5000);
+	         PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
+	        out.println(message);
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	}
+
+    // Starts the brewing process
     public CoffeeMaker startBrewing(String brewStrength) {
-    	// Retrieve the latest coffee maker state
+    	// Get the latest state of the coffee maker
     	currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
     	
-    	// Check if the microwave is on before starting the coffee maker
+    	// Check if coffee maker is already brewing
+    	if (currentCoffeeMaker != null && "ON".equals(currentCoffeeMaker.getState())) {
+    		throw new ApplianceConflictException("Coffee Maker is already running.");
+    	}
+    	
+    	// Ensure no other appliances are running
     	if (mixerService.isMixerOn() || microwaveService.isMicrowaveOn() || riceCookerService.isRiceCookerOn()) {
             throw new ApplianceConflictException("Another appliance is currently on. Please turn it off before starting the coffeemaker.");
         }
         
-        // Check if the coffee maker is already running
-        if (currentCoffeeMaker != null && "ON".equals(currentCoffeeMaker.getState())) {
-        	throw new ApplianceConflictException("Coffee Maker is already running.");
-        }
-        
-        // Initialize and start coffee maker if it is OFF
+    	// Initialize coffee maker if it’s new or has been reset
         if (currentCoffeeMaker == null) {
         	currentCoffeeMaker = new CoffeeMaker();
+        	currentCoffeeMaker.setWaterLevel(100);
+        	currentCoffeeMaker.setCoffeeGroundsLevel(100);
+        	currentCoffeeMaker.setUsageCount(0);
         }
         
-        // Start coffee maker if microwave is off
+        // Check resource levels before brewing
+        if (currentCoffeeMaker.getWaterLevel() > 0 && currentCoffeeMaker.getCoffeeGroundsLevel() > 0) {
+        	// Decrease water and coffee grounds level by 30 units per start button 
+        	currentCoffeeMaker.setWaterLevel(currentCoffeeMaker.getWaterLevel() - 30); 
+        	currentCoffeeMaker.setCoffeeGroundsLevel(currentCoffeeMaker.getCoffeeGroundsLevel() - 30); 
+        	
+        	// Update levels via WebSocket
+        	messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
+        	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
+        } else {
+        	// Notify if resources are empty
+        	messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", "Empty");
+        	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", "Empty");
+        	throw new ApplianceConflictException("The coffee maker is currently empty, please refill first before starting.");
+        }
+        
+        // Set up unique session, usage count, and state
+        currentCoffeeMaker.setUsageCount(currentCoffeeMaker.getUsageCount() + 1); 
+        String sessionId = UUID.randomUUID().toString(); 
+        currentCoffeeMaker.setSessionId(sessionId);
+        
+        // Send usage and resource updates
+        messagingTemplate.convertAndSend("/topic/coffeeMakerUsage", currentCoffeeMaker.getUsageCount());
+        messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
+    	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
+    	
+        // Set up brewing properties and notify
         currentCoffeeMaker.setState("ON");
         currentCoffeeMaker.setTemperature(90);
         currentCoffeeMaker.setBrewStrength(brewStrength);
-        
-        int brewTime = getBrewTime();
-        //currentCoffeeMaker.setBrewTime(5);
-        
+        int brewTime = getBrewTime();        
         currentCoffeeMaker.setBrewTime(brewTime);
         currentCoffeeMaker.setRemainingTime(brewTime);
         
-        
-        // Notify return updated coffee maker status
         notifyAppliances("Coffee Maker is now brewing.");
+        notifyAppliances("Coffee Maker current status:" + "\n\nID: " + currentCoffeeMaker.getId() + "\n" + "State: " + currentCoffeeMaker.getState() + "\nBrew Strength: " + currentCoffeeMaker.getBrewStrength() + "\nTemperature: " + currentCoffeeMaker.getTemperature() + "°C" + "\nBrew Time: " + currentCoffeeMaker.getBrewTime() + " seconds");
         
-        if (scheduler == null) {
-            scheduler = Executors.newScheduledThreadPool(1);
+        sendSocketMessage("Coffeemaker start");
+        sendSocketMessage("Coffee Maker session ID: " + sessionId);
+        sendSocketMessage("Coffee Maker is set at a " + currentCoffeeMaker.getBrewStrength() + " level" + " and is brewing at " + currentCoffeeMaker.getTemperature() + "°C for " + brewTime + " seconds.");
+        sendSocketMessage("Coffee Maker current water level: " + currentCoffeeMaker.getWaterLevel());
+        sendSocketMessage("Coffee Maker current coffee ground level: " + currentCoffeeMaker.getCoffeeGroundsLevel());
+		sendSocketMessage("Coffee Maker Usage Count: " + currentCoffeeMaker.getUsageCount());
+
+        // Coffee maker state in the UI
+        messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
+        
+        if (brewingTask != null && !brewingTask.isDone()) {
+            brewingTask.cancel(false);
         }
+                
+        // Schedule the brewing to stop automatically after set time
+	    brewingTask = scheduler.schedule(() -> stopBrewing(currentCoffeeMaker.getId()), brewTime, TimeUnit.SECONDS);
         
-	    scheduler.schedule(() -> stopBrewing(currentCoffeeMaker.getId()), brewTime, TimeUnit.SECONDS);
-        
-        // Schedule to start rice cooker after brewing time
+	    // Schedule regular updates for remaining brewing time
         scheduler.scheduleAtFixedRate(this::updateBrewingTime, 0, 1, TimeUnit.SECONDS);
         
-        messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
+        // Save state in repository
         return coffeeMakerRepository.save(currentCoffeeMaker);
     }
     
@@ -129,68 +156,95 @@ public class CoffeeMakerService {
         int remainingTime = currentCoffeeMaker.getRemainingTime();
 
         if (remainingTime > 0) {
-            remainingTime--; // Decrement the remaining time
+            remainingTime--;
             currentCoffeeMaker.setRemainingTime(remainingTime);
             coffeeMakerRepository.save(currentCoffeeMaker);
 
-            // Send the updated brewing time to the UI
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
             
 			System.out.println("Coffee Brewing Timer: " + timeFormatted);
-
+            sendSocketMessage("Coffee Brewing Timer: " + timeFormatted);
             messagingTemplate.convertAndSend("/topic/coffeeBrewingTimer", timeFormatted);
         } else {
-        	System.out.println("Coffee brewing has finished. Ricecooker will start brewing in 10 seconds.");
-            notifyAppliances("Coffee brewing has finished. Ricecooker will start brewing in 10 seconds.");
-            
-            String mode = "Steam";
-			
-			scheduler = Executors.newScheduledThreadPool(1); // Re-initialize scheduler
-	        scheduler.schedule(() -> riceCookerService.startCooking(mode), 10, TimeUnit.SECONDS);
-			
-	        // Shut down the scheduler
-            if (scheduler != null && !scheduler.isShutdown()) {
-                scheduler.shutdown();
-                stopBrewing(currentCoffeeMaker.getId());                
-            } 
+        	notifyAppliances("Coffee brewing has finished. Ricecooker will start cooking in 10 seconds.");
+        	sendSocketMessage("Ricecooker will start cooking in 10 seconds.");
+        	
+	        scheduler.schedule(() -> riceCookerService.startCooking("Steam"), 10, TimeUnit.SECONDS);
+	 
+            stopBrewing(currentCoffeeMaker.getId());                             
         }
     }
 
 	public void stopBrewing(Long id) {
-        CoffeeMaker coffeeMaker = coffeeMakerRepository.findById(id).orElseThrow();
+		currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
         
-        if (!coffeeMaker.getState().equals("ON")) {
+        if (!currentCoffeeMaker.getState().equals("ON")) {
             throw new IllegalStateException("Coffee Maker is already OFF.");
         }
-        
-        coffeeMaker.setState("OFF");
-        coffeeMakerRepository.save(coffeeMaker);
-        messagingTemplate.convertAndSend("/topic/coffeeMaker", coffeeMaker);
+                
+        currentCoffeeMaker.setState("OFF");
+        coffeeMakerRepository.save(currentCoffeeMaker);
+        messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
       
-        notifyAppliances("Coffee Maker has stopped brewing.");
+        sendSocketMessage("Coffee Maker Session ID: " + currentCoffeeMaker.getSessionId() + " has stopped.");
+        System.out.println("Coffeemaker stop.");
         
     }
 	
 	private int getBrewTime() {
-        return 10; // Fixed brewing time of 60 seconds
+        return 15; // Fixed brewing time of 15 seconds
     }
     
+	// Gets the latest coffee maker state
     public CoffeeMaker getCoffeeMakerState() {
-        return coffeeMakerRepository.findLatestCoffeeMaker(); // Implement this query in your repository
+        return coffeeMakerRepository.findLatestCoffeeMaker();
     }
     
+    // Sends a message to notify all appliances
     private void notifyAppliances(String message) {
         messagingTemplate.convertAndSend("/topic/applianceStatus", message);
     }
 
+    // Checks if coffee maker is currently brewing
 	public boolean isCoffeeMakerOn() {
 		// Retrieve the latest microwave record and check its state
-		CoffeeMaker coffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker(); // Implement this in MicrowaveRepository
+		CoffeeMaker coffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker(); 
 		return coffeeMaker != null && "ON".equals(coffeeMaker.getState());
 	}
 	
+	// Retrieves all previous state of the coffee maker 
+	public List<CoffeeMaker> getAllCoffeeMakerStates() {
+	    return coffeeMakerRepository.findAllCoffeeMakersOrderedById(); // Fetch all coffee makers in a specific order
+	}
 	
+	// Refills coffee maker resources if not already full
+	public CoffeeMaker refillResource() {
+    	currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
+    	
+        int waterLevel = currentCoffeeMaker.getWaterLevel();
+        int CoffeeGroundsLevel = currentCoffeeMaker.getCoffeeGroundsLevel();
+        
+        if (currentCoffeeMaker != null && "ON".equals(currentCoffeeMaker.getState())) {
+    		throw new IllegalStateException("Coffee Maker is already running.");
+    	}
+
+        if (currentCoffeeMaker.getWaterLevel() == 100 && currentCoffeeMaker.getCoffeeGroundsLevel() == 100) {
+            throw new IllegalStateException("Coffee Maker resources are still available.");
+        }
+        
+        currentCoffeeMaker.setWaterLevel(100);
+        currentCoffeeMaker.setCoffeeGroundsLevel(100);
+        coffeeMakerRepository.save(currentCoffeeMaker);
+        
+        messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
+		messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
+        
+        notifyAppliances("Coffee Maker has been refilled.");
+        sendSocketMessage("Coffee Maker has been refilled.");
+        
+        return coffeeMakerRepository.save(currentCoffeeMaker);
+    }
 	
 }

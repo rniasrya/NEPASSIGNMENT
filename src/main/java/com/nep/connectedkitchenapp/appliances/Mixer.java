@@ -11,11 +11,12 @@ public class Mixer {
 	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    private String state;       // ON or OFF
-    private int speedLevel;      // Speed level for mixing (e.g., 1-5)
+    private String state;       
+    private int speedLevel;      
     private int mixingTime;
     private int remainingTime;
+    private int usageCount; 
+    private String sessionId;
     
 
 	// Getters and Setters
@@ -58,4 +59,22 @@ public class Mixer {
     public void setRemainingTime(int remainingTime) {
     	this.remainingTime = remainingTime;
     }
+
+	public int getUsageCount() {
+		return usageCount;
+	}
+
+	public void setUsageCount(int usageCount) {
+		this.usageCount = usageCount;
+	}
+
+	public String getSessionId() {
+		return sessionId;
+	}
+
+	public void setSessionId(String sessionId) {
+		this.sessionId = sessionId;
+	}
+    
+    
 }
