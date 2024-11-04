@@ -189,8 +189,10 @@ public class RiceCookerService {
         }
                 
         currentRiceCooker.setState("OFF");
+        currentRiceCooker.setRemainingTime(0);
         riceCookerRepository.save(currentRiceCooker);
         messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
+        messagingTemplate.convertAndSend("/topic/riceCookerTimer", "00:00");
         
         sendSocketMessage("Ricecooker has stopped.");
         notifyAppliances("Ricecooker has stopped.");

@@ -210,10 +210,13 @@ public class CoffeeMakerService {
         if (!currentCoffeeMaker.getState().equals("ON")) {
             throw new IllegalStateException("Coffee Maker is already OFF.");
         }
-                        
+        
+        // Set state to OFF and reset the remaining time to 0
         currentCoffeeMaker.setState("OFF");
+        currentCoffeeMaker.setRemainingTime(0);
         coffeeMakerRepository.save(currentCoffeeMaker);
         messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
+        messagingTemplate.convertAndSend("/topic/coffeeBrewingTimer", "00:00");
       
         sendSocketMessage("Coffee Maker has stopped.");   
         notifyAppliances("Coffee Maker has stopped."); 

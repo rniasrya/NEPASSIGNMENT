@@ -175,8 +175,10 @@ public class MixerService {
         }
                 
         mixer.setState("OFF");
+        currentMixer.setRemainingTime(0);
         mixerRepository.save(mixer);
         messagingTemplate.convertAndSend("/topic/mixer", mixer);
+        messagingTemplate.convertAndSend("/topic/mixerTimer", "00:00");
         
         sendSocketMessage("Mixer has stopped.");
         notifyAppliances("Mixer has stopped.");

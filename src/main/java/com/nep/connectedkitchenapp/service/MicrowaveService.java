@@ -183,8 +183,10 @@ public class MicrowaveService {
 		}
 				
 		microwave.setState("OFF");
+		currentMicrowave.setRemainingTime(0);
 		microwaveRepository.save(microwave);
 		messagingTemplate.convertAndSend("/topic/microwave", microwave);
+		messagingTemplate.convertAndSend("/topic/microwaveTimer", "00:00");
 		
 		sendSocketMessage("Microwave has stopped.");
 	    notifyAppliances("Microwave has stopped.");
