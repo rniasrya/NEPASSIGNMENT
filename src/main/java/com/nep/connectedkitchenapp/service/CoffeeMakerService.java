@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -48,7 +49,9 @@ public class CoffeeMakerService {
 		
 	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
     
-    private ScheduledFuture<?> brewingTask; // Stores the brewing task for cancellation or modification   
+    private ScheduledFuture<?> brewingTask; // Stores the brewing task for cancellation or modification 
+    
+    private final AtomicBoolean brewingTaskRunning = new AtomicBoolean(false);
     
     @Autowired
     public CoffeeMakerService(CoffeeMakerRepository coffeeMakerRepository, SimpMessagingTemplate messagingTemplate) {
@@ -93,9 +96,10 @@ public class CoffeeMakerService {
         
         // Check resource levels before brewing
         if (currentCoffeeMaker.getWaterLevel() > 0 && currentCoffeeMaker.getCoffeeGroundsLevel() > 0) {
-        	// Decrease water and coffee grounds level by 30 units per start button 
-        	currentCoffeeMaker.setWaterLevel(currentCoffeeMaker.getWaterLevel() - 30); 
-        	currentCoffeeMaker.setCoffeeGroundsLevel(currentCoffeeMaker.getCoffeeGroundsLevel() - 30); 
+        	
+        	// Decrease water and coffee grounds level by 20 units per start button 
+        	currentCoffeeMaker.setWaterLevel(currentCoffeeMaker.getWaterLevel() - 20); 
+        	currentCoffeeMaker.setCoffeeGroundsLevel(currentCoffeeMaker.getCoffeeGroundsLevel() - 20); 
         	
         	// Update levels via WebSocket
         	messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
@@ -138,44 +142,67 @@ public class CoffeeMakerService {
         // Coffee maker state in the UI
         messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
         
+        scheduler = Executors.newScheduledThreadPool(1);
+        
         if (brewingTask != null && !brewingTask.isDone()) {
             brewingTask.cancel(false);
         }
                 
         // Schedule the brewing to stop automatically after set time
-	    brewingTask = scheduler.schedule(() -> stopBrewing(currentCoffeeMaker.getId()), brewTime, TimeUnit.SECONDS);
+	    brewingTask = scheduler.schedule(() -> stopBrewingforTimer(), brewTime, TimeUnit.SECONDS);
         
 	    // Schedule regular updates for remaining brewing time
-        scheduler.scheduleAtFixedRate(this::updateBrewingTime, 0, 1, TimeUnit.SECONDS);
+	    scheduler.scheduleAtFixedRate(this::updateBrewingTime, 0, 1, TimeUnit.SECONDS);
         
         // Save state in repository
         return coffeeMakerRepository.save(currentCoffeeMaker);
     }
-    
-    private void updateBrewingTime() {
-        int remainingTime = currentCoffeeMaker.getRemainingTime();
+
+	private void updateBrewingTime() {
+    	int remainingTime = currentCoffeeMaker.getRemainingTime();
 
         if (remainingTime > 0) {
             remainingTime--;
             currentCoffeeMaker.setRemainingTime(remainingTime);
-            coffeeMakerRepository.save(currentCoffeeMaker);
-
+            
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
             
-			System.out.println("Coffee Brewing Timer: " + timeFormatted);
             sendSocketMessage("Coffee Brewing Timer: " + timeFormatted);
             messagingTemplate.convertAndSend("/topic/coffeeBrewingTimer", timeFormatted);
         } else {
-        	notifyAppliances("Coffee brewing has finished. Ricecooker will start cooking in 10 seconds.");
-        	sendSocketMessage("Ricecooker will start cooking in 10 seconds.");
-        	
-	        scheduler.schedule(() -> riceCookerService.startCooking("Steam"), 10, TimeUnit.SECONDS);
-	 
-            stopBrewing(currentCoffeeMaker.getId());                             
+            stopBrewingforTimer();
         }
     }
+	
+	public void stopBrewingforTimer() {
+		
+		if (currentCoffeeMaker == null) {
+            return;
+        }
+		
+		currentCoffeeMaker.setState("OFF");
+		coffeeMakerRepository.save(currentCoffeeMaker);
+        messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
+
+        // Cancel the scheduled brewing task
+        if (brewingTask != null && !brewingTask.isDone()) {
+        	brewingTask.cancel(false);
+        }
+
+        // Notify appliances that brewing has finished
+        notifyAppliances("Coffee brewing has finished. Rice cooker will start cooking in 10 seconds.");
+        sendSocketMessage("Coffee brewing has finished. Rice cooker will start cooking in 10 seconds.");
+
+        // Schedule the rice cooker to start after 10 seconds
+        if (scheduler != null && !scheduler.isShutdown()) {
+        	scheduler.schedule(() -> riceCookerService.startCooking("Steam"), 10, TimeUnit.SECONDS);
+        }
+        
+        // Shutdown the scheduler
+        scheduler.shutdown();
+	}
 
 	public void stopBrewing(Long id) {
 		currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
@@ -183,13 +210,20 @@ public class CoffeeMakerService {
         if (!currentCoffeeMaker.getState().equals("ON")) {
             throw new IllegalStateException("Coffee Maker is already OFF.");
         }
-                
+                        
         currentCoffeeMaker.setState("OFF");
         coffeeMakerRepository.save(currentCoffeeMaker);
         messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
       
-        sendSocketMessage("Coffee Maker Session ID: " + currentCoffeeMaker.getSessionId() + " has stopped.");
-        System.out.println("Coffeemaker stop.");
+        sendSocketMessage("Coffee Maker has stopped.");   
+        notifyAppliances("Coffee Maker has stopped."); 
+        
+        // Cancel the brewing task if it exists
+        if (brewingTask != null && !brewingTask.isDone()) {
+        	brewingTask.cancel(false);
+        }
+        
+        scheduler.shutdownNow();
         
     }
 	

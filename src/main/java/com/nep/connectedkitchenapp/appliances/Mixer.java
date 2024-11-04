@@ -18,8 +18,6 @@ public class Mixer {
     private int usageCount; 
     private String sessionId;
     
-
-	// Getters and Setters
     public Long getId() { 
     	return id; 
     }

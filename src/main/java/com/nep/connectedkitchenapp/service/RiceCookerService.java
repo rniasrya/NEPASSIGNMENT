@@ -70,6 +70,8 @@ public class RiceCookerService {
 
 	// Starts the cooking process
     public RiceCooker startCooking(String mode) {
+    	
+    	// Get the latest state of the rice cooker
     	currentRiceCooker = riceCookerRepository.findLatestriceCooker();
     	
     	// Check if rice cooker is already running
@@ -113,15 +115,18 @@ public class RiceCookerService {
 		// Rice cooker state in the UI
 		messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
 	    
+		// Initialize the scheduler here
+        scheduler = Executors.newScheduledThreadPool(1);
+		
 		if (cookingTask != null && !cookingTask.isDone()) {
             cookingTask.cancel(false);
         }
 	    
 		// Schedule the cooking to stop automatically after set time
-	    cookingTask = scheduler.schedule(() -> stopCooking(currentRiceCooker.getId()), cookingTime, TimeUnit.SECONDS);
+        cookingTask = scheduler.schedule(() -> stopCookingforTimer(), cookingTime, TimeUnit.SECONDS);
         
 	    // Schedule regular updates for remaining mixing time
-        scheduler.scheduleAtFixedRate(this::updateCookingTime, 0, 1, TimeUnit.SECONDS);
+	    scheduler.scheduleAtFixedRate(this::updateCookingTime, 0, 1, TimeUnit.SECONDS);
         
         // Save state in repository
         return riceCookerRepository.save(currentRiceCooker);
@@ -134,26 +139,46 @@ public class RiceCookerService {
         if (remainingTime > 0) {
             remainingTime--; 
             currentRiceCooker.setRemainingTime(remainingTime);
-            riceCookerRepository.save(currentRiceCooker);
 
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
           
-            System.out.println("Ricecooker Timer: " + timeFormatted);
             sendSocketMessage("Ricecooker Timer: " + timeFormatted);
             messagingTemplate.convertAndSend("/topic/riceCookerTimer", timeFormatted);
         } else {
-        	sendSocketMessage("Mixer will start in 10 seconds.");
-            notifyAppliances("Ricecooker has finished. Mixer will start in 10 seconds.");
-			
-            int speed = 5;
-            	        
+            stopCookingforTimer();                   
+        } 
+    }
+	
+	public void stopCookingforTimer() {
+		
+		if (currentRiceCooker == null) {
+            return;
+        }
+		
+		currentRiceCooker.setState("OFF");
+        riceCookerRepository.save(currentRiceCooker);
+        messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
+
+        // Cancel the scheduled cooking task
+        if (cookingTask != null && !cookingTask.isDone()) {
+            cookingTask.cancel(false);
+        }
+
+        // Notify appliances that cooking has finished
+        sendSocketMessage("Ricecooker has finished. Mixer will start in 10 seconds.");
+        notifyAppliances("Ricecooker has finished. Mixer will start in 10 seconds.");
+
+        // Schedule the mixer to start after 10 seconds
+        int speed = 5;
+        
+        if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.schedule(() -> mixerService.startMixing(speed), 10, TimeUnit.SECONDS);
-            
-            stopCooking(currentRiceCooker.getId());                   
         }
         
+        // Shutdown the scheduler
+        scheduler.shutdown();       
     }
 
     public void stopCooking(Long id) {
@@ -167,8 +192,17 @@ public class RiceCookerService {
         riceCookerRepository.save(currentRiceCooker);
         messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
         
-        sendSocketMessage("Ricecooker stop");
-        System.out.println("Ricecooker stop");
+        sendSocketMessage("Ricecooker has stopped.");
+        notifyAppliances("Ricecooker has stopped.");
+        
+        // Cancel the cooking task if it exists
+        if (cookingTask != null && !cookingTask.isDone()) {
+            cookingTask.cancel(false);
+        }
+
+        // Shutdown the scheduler to stop all scheduled tasks
+        scheduler.shutdownNow();
+               
     }
 
     private int getCookingTime() {

@@ -111,42 +111,61 @@ public class MixerService {
 		// Mixer state in the UI
 		messagingTemplate.convertAndSend("/topic/mixer", currentMixer);
 		
+        scheduler = Executors.newScheduledThreadPool(1);
+		
 		if (mixingTask != null && !mixingTask.isDone()) {
 			mixingTask.cancel(false);
         }
 		
 		// Schedule the mixing to stop automatically after set time
-		mixingTask = scheduler.schedule(() -> stopMixing(currentMixer.getId()), mixingTime, TimeUnit.SECONDS);
+		mixingTask = scheduler.schedule(() -> stopMixingforTimer(), mixingTime, TimeUnit.SECONDS);
         
 		// Schedule regular updates for remaining mixing time
-        scheduler.scheduleAtFixedRate(this::updateMixingTime, 0, 1, TimeUnit.SECONDS);
+		scheduler.scheduleAtFixedRate(this::updateMixingTime, 0, 1, TimeUnit.SECONDS);
         
         // Save state in repository
         return mixerRepository.save(currentMixer);
     }
-    
-    private void updateMixingTime() {
+
+	private void updateMixingTime() {
         int remainingTime = currentMixer.getRemainingTime();
 
         if (remainingTime > 0) {
             remainingTime--; 
             currentMixer.setRemainingTime(remainingTime);
-            mixerRepository.save(currentMixer);
 
             int minutes = remainingTime / 60;
             int seconds = remainingTime % 60;
             String timeFormatted = String.format("%02d:%02d", minutes, seconds);
             
             sendSocketMessage("Mixer Timer: " + timeFormatted);
-
             messagingTemplate.convertAndSend("/topic/mixerTimer", timeFormatted);
-        } else {
-        	sendSocketMessage("Mixer has finished.");
-            notifyAppliances("Mixer has finished.");
-            
-            stopMixing(currentMixer.getId());                
+        } else {            
+            stopMixingforTimer();                
         }
     }
+	
+	public void stopMixingforTimer() {
+		if (currentMixer == null) {
+            return;
+        }
+		
+		currentMixer.setState("OFF");
+		mixerRepository.save(currentMixer);
+        messagingTemplate.convertAndSend("/topic/mixer", currentMixer);
+
+        // Cancel the scheduled cooking task
+        if (mixingTask != null && !mixingTask.isDone()) {
+        	mixingTask.cancel(false);
+        }
+
+        // Notify appliances that mixing has finished
+        sendSocketMessage("Mixer has finished.");
+        notifyAppliances("Mixer has finished.");
+        
+        // Shutdown the scheduler
+        scheduler.shutdown();
+	}
 
     public void stopMixing(Long id) {
         Mixer mixer = mixerRepository.findById(id).orElseThrow();
@@ -159,8 +178,10 @@ public class MixerService {
         mixerRepository.save(mixer);
         messagingTemplate.convertAndSend("/topic/mixer", mixer);
         
-        sendSocketMessage("Mixer stop");
-        System.out.println("Mixer stop");
+        sendSocketMessage("Mixer has stopped.");
+        notifyAppliances("Mixer has stopped.");
+                
+        scheduler.shutdownNow();
     }
     
     private int getMixingTime() {

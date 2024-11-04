@@ -67,6 +67,7 @@ public class MicrowaveService {
 
     // Starts the heating process
 	public Microwave startHeating(int temperature, int timer) {
+		
     	// Retrieve the latest microwave state
 		currentMicrowave = microwaveRepository.findLatestMicrowave();
 		
@@ -109,13 +110,15 @@ public class MicrowaveService {
 
 		// Microwave state in the UI
 		messagingTemplate.convertAndSend("/topic/microwave", currentMicrowave);
+		
+        scheduler = Executors.newScheduledThreadPool(1);
 			    
 		if (heatingTask != null && !heatingTask.isDone()) {
             heatingTask.cancel(false);
         }
 		
 		// Schedule the heating to stop automatically after set time
-	    heatingTask = scheduler.schedule(() -> stopHeating(currentMicrowave.getId()), timer, TimeUnit.MINUTES);
+	    heatingTask = scheduler.schedule(() -> stopHeatingforTimer(), timer, TimeUnit.MINUTES);
 
 	    // Schedule regular updates for remaining heating time
 	    scheduler.scheduleAtFixedRate(this::updateRemainingTime, 0, 1, TimeUnit.SECONDS);
@@ -123,14 +126,13 @@ public class MicrowaveService {
 	    // Save state in repository
         return microwaveRepository.save(currentMicrowave);
 	}
-	
+
 	private void updateRemainingTime() {
 		int remainingTime = currentMicrowave.getRemainingTime();
 		
 		if (remainingTime > 0) {
 			remainingTime--; 
 			currentMicrowave.setRemainingTime(remainingTime);
-			microwaveRepository.save(currentMicrowave);
 			
 			int minutes = remainingTime / 60;
 			int seconds = remainingTime % 60;
@@ -140,15 +142,37 @@ public class MicrowaveService {
 			
 			messagingTemplate.convertAndSend("/topic/microwaveTimer", timeFormatted);
 		} else {
-			sendSocketMessage("Coffee Maker will start brewing in 10 seconds.");
-			notifyAppliances("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
-			
-			String brewStrength = "Medium";
-			
-	        scheduler.schedule(() -> coffeeMakerService.startBrewing(brewStrength), 10, TimeUnit.SECONDS);
-			
-            stopHeating(currentMicrowave.getId());                
+            stopHeatingforTimer();                
 		}
+	}
+	
+	public void stopHeatingforTimer() {
+		
+		if (currentMicrowave == null) {
+            return;
+        }
+		
+		currentMicrowave.setState("OFF");
+		microwaveRepository.save(currentMicrowave);
+        messagingTemplate.convertAndSend("/topic/microwave", currentMicrowave);
+
+        // Cancel the scheduled heating task
+        if (heatingTask != null && !heatingTask.isDone()) {
+        	heatingTask.cancel(false);
+        }
+
+        // Notify appliances that microwave has finished
+        sendSocketMessage("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
+		notifyAppliances("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
+
+		String brewStrength = "Medium";
+        // Schedule the coffee maker to start after 10 seconds
+        if (scheduler != null && !scheduler.isShutdown()) {
+        	scheduler.schedule(() -> coffeeMakerService.startBrewing(brewStrength), 10, TimeUnit.SECONDS);
+        }
+        
+        // Shutdown the scheduler
+        scheduler.shutdown();
 	}
 	
 	public void stopHeating(Long id) {
@@ -162,9 +186,14 @@ public class MicrowaveService {
 		microwaveRepository.save(microwave);
 		messagingTemplate.convertAndSend("/topic/microwave", microwave);
 		
-		System.out.println("Microwave has stopped.");
-		sendSocketMessage("Microwave stop");
+		sendSocketMessage("Microwave has stopped.");
+	    notifyAppliances("Microwave has stopped.");
 		
+		if (heatingTask != null && !heatingTask.isDone()) {
+			heatingTask.cancel(false);
+	    }
+		
+	    scheduler.shutdown();		
 	}
 	
     
