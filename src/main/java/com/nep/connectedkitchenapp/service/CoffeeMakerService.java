@@ -3,6 +3,7 @@ package com.nep.connectedkitchenapp.service;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,10 +25,9 @@ import com.nep.connectedkitchenapp.respository.CoffeeMakerRepository;
 public class CoffeeMakerService {
 	
 	private CoffeeMaker coffeeMaker = new CoffeeMaker();
-		
 	private CoffeeMaker currentCoffeeMaker;
-	
 	private ApplianceSocketServer socketServer;
+	private final Random random = new Random();
 	
 	@Autowired
     private CoffeeMakerRepository coffeeMakerRepository;
@@ -48,9 +48,7 @@ public class CoffeeMakerService {
     private SimpMessagingTemplate messagingTemplate; // Messaging template for WebSocket communication
 		
 	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
-    
     private ScheduledFuture<?> brewingTask; // Stores the brewing task for cancellation or modification 
-    
     private final AtomicBoolean brewingTaskRunning = new AtomicBoolean(false);
     
     @Autowired
@@ -70,9 +68,10 @@ public class CoffeeMakerService {
 	        e.printStackTrace();
 	    }
 	}
-
+    
     // Starts the brewing process
     public CoffeeMaker startBrewing(String brewStrength) {
+        
     	// Get the latest state of the coffee maker
     	currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
     	
@@ -94,21 +93,25 @@ public class CoffeeMakerService {
         	currentCoffeeMaker.setUsageCount(0);
         }
         
-        // Check resource levels before brewing
-        if (currentCoffeeMaker.getWaterLevel() > 0 && currentCoffeeMaker.getCoffeeGroundsLevel() > 0) {
-        	
-        	// Decrease water and coffee grounds level by 20 units per start button 
-        	currentCoffeeMaker.setWaterLevel(currentCoffeeMaker.getWaterLevel() - 20); 
-        	currentCoffeeMaker.setCoffeeGroundsLevel(currentCoffeeMaker.getCoffeeGroundsLevel() - 20); 
-        	
-        	// Update levels via WebSocket
+     // Check if there is enough water
+    	if (currentCoffeeMaker.getWaterLevel() > 0 && currentCoffeeMaker.getCoffeeGroundsLevel() > 0) {
+        	// Decrease water by 10 units per start button 
+        	currentCoffeeMaker.setWaterLevel(currentCoffeeMaker.getWaterLevel() - 20);         	
         	messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
-        	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
         } else {
         	// Notify if resources are empty
         	messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", "Empty");
+        	throw new ApplianceConflictException("Not enough water, please refill.");
+        }
+        
+        // Check if there are enough coffee grounds
+        if (currentCoffeeMaker.getCoffeeGroundsLevel() > 0 && currentCoffeeMaker.getCoffeeGroundsLevel() > 0) {
+        	// Decrease coffee grounds level by 5 units per start button 
+        	currentCoffeeMaker.setCoffeeGroundsLevel(currentCoffeeMaker.getCoffeeGroundsLevel() - 5);
+        	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
+        } else {
         	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", "Empty");
-        	throw new ApplianceConflictException("The coffee maker is currently empty, please refill first before starting.");
+        	throw new ApplianceConflictException("Not enough coffee grounds, please refill.");
         }
         
         // Set up unique session, usage count, and state
@@ -118,9 +121,7 @@ public class CoffeeMakerService {
         
         // Send usage and resource updates
         messagingTemplate.convertAndSend("/topic/coffeeMakerUsage", currentCoffeeMaker.getUsageCount());
-        messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
-    	messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
-    	
+                
         // Set up brewing properties and notify
         currentCoffeeMaker.setState("ON");
         currentCoffeeMaker.setTemperature(90);
@@ -130,9 +131,16 @@ public class CoffeeMakerService {
         currentCoffeeMaker.setRemainingTime(brewTime);
         
         notifyAppliances("Coffee Maker is now brewing.");
-        notifyAppliances("Coffee Maker current status:" + "\n\nID: " + currentCoffeeMaker.getId() + "\n" + "State: " + currentCoffeeMaker.getState() + "\nBrew Strength: " + currentCoffeeMaker.getBrewStrength() + "\nTemperature: " + currentCoffeeMaker.getTemperature() + "°C" + "\nBrew Time: " + currentCoffeeMaker.getBrewTime() + " seconds");
+
+        notifyAppliances("Coffee Maker current status:" + 
+        					"\n\nID: " + currentCoffeeMaker.getId() + 
+        					"\n" + "State: " + currentCoffeeMaker.getState() + 
+        					"\nBrew Strength: " + currentCoffeeMaker.getBrewStrength() + 
+        					"\nTemperature: " + currentCoffeeMaker.getTemperature() + "°C" + 
+        					"\nBrew Time: " + currentCoffeeMaker.getBrewTime() + " seconds" +
+        					"\nUsage Count: " + currentCoffeeMaker.getUsageCount());
         
-        sendSocketMessage("Coffeemaker start");
+        sendSocketMessage("Coffee Maker has started.");
         sendSocketMessage("Coffee Maker session ID: " + sessionId);
         sendSocketMessage("Coffee Maker is set at a " + currentCoffeeMaker.getBrewStrength() + " level" + " and is brewing at " + currentCoffeeMaker.getTemperature() + "°C for " + brewTime + " seconds.");
         sendSocketMessage("Coffee Maker current water level: " + currentCoffeeMaker.getWaterLevel());
@@ -214,12 +222,13 @@ public class CoffeeMakerService {
         // Set state to OFF and reset the remaining time to 0
         currentCoffeeMaker.setState("OFF");
         currentCoffeeMaker.setRemainingTime(0);
-        coffeeMakerRepository.save(currentCoffeeMaker);
         messagingTemplate.convertAndSend("/topic/coffeeMaker", currentCoffeeMaker);
         messagingTemplate.convertAndSend("/topic/coffeeBrewingTimer", "00:00");
       
-        sendSocketMessage("Coffee Maker has stopped.");   
+        coffeeMakerRepository.save(currentCoffeeMaker);
+        
         notifyAppliances("Coffee Maker has stopped."); 
+        sendSocketMessage("Coffee Maker has stopped.");   
         
         // Cancel the brewing task if it exists
         if (brewingTask != null && !brewingTask.isDone()) {
@@ -257,26 +266,82 @@ public class CoffeeMakerService {
 	}
 	
 	// Refills coffee maker resources if not already full
-	public CoffeeMaker refillResource() {
+	public CoffeeMaker refillWaterResource() {
     	currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
-    	
-        int waterLevel = currentCoffeeMaker.getWaterLevel();
-        int CoffeeGroundsLevel = currentCoffeeMaker.getCoffeeGroundsLevel();
         
+    	// Simulate the water level sensor reading before refilling
+        int currentWaterLevel = currentCoffeeMaker.getWaterLevel();
+    	
         if (currentCoffeeMaker != null && "ON".equals(currentCoffeeMaker.getState())) {
-    		throw new IllegalStateException("Coffee Maker is already running.");
+    		throw new IllegalStateException("Coffee Maker is currently running.");
     	}
 
-        if (currentCoffeeMaker.getWaterLevel() == 100 && currentCoffeeMaker.getCoffeeGroundsLevel() == 100) {
-            throw new IllegalStateException("Coffee Maker resources are still available.");
+        if (currentWaterLevel == 100) {
+            throw new IllegalStateException("Water level is already full.");
         }
         
+        if (currentWaterLevel > 0) {
+            throw new IllegalStateException("Water level are not empty. Cannot refill yet.");
+        }
+        
+        // Simulate refilling the water to full
         currentCoffeeMaker.setWaterLevel(100);
-        currentCoffeeMaker.setCoffeeGroundsLevel(100);
+        
         coffeeMakerRepository.save(currentCoffeeMaker);
         
-        messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", currentCoffeeMaker.getWaterLevel());
-		messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", currentCoffeeMaker.getCoffeeGroundsLevel());
+        notifyAppliances("Refilling water...");
+        sendSocketMessage("Refilling water...");
+        
+        try {
+        	Thread.sleep(3000);
+        } catch (InterruptedException e) {
+        	e.printStackTrace();
+        }
+        
+        // Notify the UI about the updated water level
+        messagingTemplate.convertAndSend("/topic/coffeeMakerWaterResource", 100);
+        
+        notifyAppliances("Coffee Maker has been refilled.");
+        sendSocketMessage("Coffee Maker has been refilled.");
+        
+        return coffeeMakerRepository.save(currentCoffeeMaker);
+    }
+	
+	// Refilling coffee grounds logic can simulate sensor reading as well
+    public CoffeeMaker refillCoffeeGroundsResource() {
+        currentCoffeeMaker = coffeeMakerRepository.findLatestCoffeeMaker();
+        
+        if (currentCoffeeMaker != null && "ON".equals(currentCoffeeMaker.getState())) {
+    		throw new IllegalStateException("Coffee Maker is currently running.");
+    	}
+        
+        // Simulate the coffee grounds sensor before refilling
+        int currentCoffeeGroundsLevel = currentCoffeeMaker.getCoffeeGroundsLevel();
+        
+        if (currentCoffeeGroundsLevel == 100) {
+            throw new IllegalStateException("Coffee grounds are already full.");
+        }
+        
+        if (currentCoffeeGroundsLevel > 0) {
+            throw new IllegalStateException("Coffee grounds are not empty. Cannot refill yet.");
+        }
+        
+        // Simulate refilling the coffee grounds to full
+        currentCoffeeMaker.setCoffeeGroundsLevel(100);
+        
+        coffeeMakerRepository.save(currentCoffeeMaker);
+        
+        notifyAppliances("Refilling coffee grounds...");
+        sendSocketMessage("Refilling coffee grounds...");
+        
+        try {
+        	Thread.sleep(3000);
+        } catch (InterruptedException e) {
+        	e.printStackTrace();
+        }
+        
+        // Notify the UI about the updated coffee grounds level
+        messagingTemplate.convertAndSend("/topic/coffeeMakerCGResource", 100);
         
         notifyAppliances("Coffee Maker has been refilled.");
         sendSocketMessage("Coffee Maker has been refilled.");

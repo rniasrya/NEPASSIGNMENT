@@ -23,8 +23,8 @@ import com.nep.connectedkitchenapp.respository.MicrowaveRepository;
 public class MicrowaveService {
 	
 	private Microwave currentMicrowave;
-	
 	private ApplianceSocketServer socketServer;
+	private int simulatedTemperature = 25;
 	
 	private final MicrowaveRepository microwaveRepository;
 	
@@ -44,8 +44,9 @@ public class MicrowaveService {
     private final SimpMessagingTemplate messagingTemplate; // Message template for WebSocket communication
     
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
-    
     private ScheduledFuture<?> heatingTask; // Stores the heating task for cancellation or modification
+    private ScheduledFuture<?> sensorTask;
+    private ScheduledExecutorService sensorScheduler = Executors.newScheduledThreadPool(1);
     
     @Autowired
     public MicrowaveService(MicrowaveRepository microwaveRepository, SimpMessagingTemplate messagingTemplate, CoffeeMakerService coffeeMakerService) {
@@ -101,7 +102,12 @@ public class MicrowaveService {
 		currentMicrowave.setRemainingTime(timer * 60);
 		
 		notifyAppliances("Microwave is now running.");
-		notifyAppliances("Microwave current status:" + "\n\nID: " + currentMicrowave.getId() + "\n" + "State: " + currentMicrowave.getState() + "\nTemperature: " + currentMicrowave.getTemperature() + "°C" + "\nDuration: " + currentMicrowave.getTimer()  + " mins");
+		notifyAppliances("Microwave current status:" + 
+				"\n\nID: " + currentMicrowave.getId() + 
+				"\n" + "State: " + currentMicrowave.getState() + 
+				"\nTemperature: " + currentMicrowave.getTemperature() + 
+				"°C" + "\nDuration: " + currentMicrowave.getTimer()  + " mins" +
+				"\nUsage Count: " + currentMicrowave.getUsageCount());
 		
 		sendSocketMessage("Microwave start");
 		sendSocketMessage("Microwave session ID: " + sessionId);
@@ -123,9 +129,47 @@ public class MicrowaveService {
 	    // Schedule regular updates for remaining heating time
 	    scheduler.scheduleAtFixedRate(this::updateRemainingTime, 0, 1, TimeUnit.SECONDS);
         
+	    // Start the temperature sensor simulation
+        startMicrowaveTemperatureSensor();
+	    
 	    // Save state in repository
         return microwaveRepository.save(currentMicrowave);
 	}
+	
+	// Simulates a temperature sensor that periodically updates and checks for overheating
+    private void startMicrowaveTemperatureSensor() {
+    	sensorTask = sensorScheduler.scheduleAtFixedRate(() -> {
+    		// Gradually increase temperature towards target temperature with a heating rate
+            if (simulatedTemperature < currentMicrowave.getTemperature()) {
+                // Simulate the microwave heating up
+                simulatedTemperature += Math.min(2, currentMicrowave.getTemperature() - simulatedTemperature); // Heating rate
+            } else if (simulatedTemperature > currentMicrowave.getTemperature()) {
+                // If overshot, bring it down slightly 
+                simulatedTemperature -= Math.min(1, simulatedTemperature - currentMicrowave.getTemperature());
+            }
+    		
+            // Randomly increase or decrease temperature 
+            simulatedTemperature += (Math.random() > 0.5 ? 1 : -1);
+
+            // Send the temperature data to WebSocket clients
+            messagingTemplate.convertAndSend("/topic/microwaveTemperature", simulatedTemperature);
+            currentMicrowave.setTemperature(simulatedTemperature);
+            
+            // Check for overheating condition
+            if (simulatedTemperature > currentMicrowave.getTemperature() + 20) { // Threshold set to 120°C
+                stopHeating(currentMicrowave.getId());
+                sendSocketMessage("Microwave overheated and stopped.");
+                notifyAppliances("Microwave stopped due to overheating.");
+            }
+        }, 0, 1, TimeUnit.SECONDS);
+    }
+    
+    // Call this method to stop the sensor
+    private void stopMicrowaveTemperatureSensor() {
+        if (sensorTask != null && !sensorTask.isDone()) {
+            sensorTask.cancel(false); 
+        }
+    }
 
 	private void updateRemainingTime() {
 		int remainingTime = currentMicrowave.getRemainingTime();
@@ -152,8 +196,11 @@ public class MicrowaveService {
             return;
         }
 		
+		stopMicrowaveTemperatureSensor();
+		
 		currentMicrowave.setState("OFF");
 		microwaveRepository.save(currentMicrowave);
+		messagingTemplate.convertAndSend("/topic/microwaveTemperature", "0");
         messagingTemplate.convertAndSend("/topic/microwave", currentMicrowave);
 
         // Cancel the scheduled heating task
@@ -162,10 +209,11 @@ public class MicrowaveService {
         }
 
         // Notify appliances that microwave has finished
+        notifyAppliances("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
         sendSocketMessage("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
-		notifyAppliances("Microwave has finished heating. Coffee Maker will start brewing in 10 seconds.");
 
 		String brewStrength = "Medium";
+		
         // Schedule the coffee maker to start after 10 seconds
         if (scheduler != null && !scheduler.isShutdown()) {
         	scheduler.schedule(() -> coffeeMakerService.startBrewing(brewStrength), 10, TimeUnit.SECONDS);
@@ -186,6 +234,7 @@ public class MicrowaveService {
 		currentMicrowave.setRemainingTime(0);
 		microwaveRepository.save(microwave);
 		messagingTemplate.convertAndSend("/topic/microwave", microwave);
+		messagingTemplate.convertAndSend("/topic/microwaveTemperature", "0°C");
 		messagingTemplate.convertAndSend("/topic/microwaveTimer", "00:00");
 		
 		sendSocketMessage("Microwave has stopped.");
@@ -195,6 +244,7 @@ public class MicrowaveService {
 			heatingTask.cancel(false);
 	    }
 		
+		stopMicrowaveTemperatureSensor();
 	    scheduler.shutdown();		
 	}
 	

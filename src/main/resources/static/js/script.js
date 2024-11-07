@@ -41,8 +41,38 @@ function stopCoffeeMaker() {
     .catch(error => alert(error.message)); 
 }
 
-function refillCoffeeMaker() {
+/*function refillCoffeeMaker() {
     fetch(`${baseUrl}/coffeeMaker/refill`, {
+        method: 'POST',
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Failed to stop refill Coffee Maker');
+            });
+        }
+        return console.log('Coffee Maker refilled');
+    })
+    .catch(error => alert(error.message));
+}*/
+
+function refillWaterResource() {
+    fetch(`${baseUrl}/coffeeMaker/refillWater`, {
+        method: 'POST',
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Failed to stop refill Coffee Maker');
+            });
+        }
+        return console.log('Coffee Maker refilled');
+    })
+    .catch(error => alert(error.message));
+}	
+
+function refillCoffeeGroundsResource() {
+    fetch(`${baseUrl}/coffeeMaker/refillCoffeeGrounds`, {
         method: 'POST',
     })
     .then(response => {
@@ -216,6 +246,18 @@ stompClient.connect({}, function (frame) {
 		document.getElementById('mixer-timer').textContent = `Mixer Timer: ${message.body}`;
 	});
 	
+	stompClient.subscribe('/topic/microwaveTemperature', function (message) {
+	    // Parse the temperature value from the message body, then format it to 2 decimal places
+	    let temperature = parseFloat(message.body).toFixed(0);
+	    document.getElementById('microwave-temp').textContent = `Microwave Temperature: ${temperature}°C`;
+	});
+	
+	stompClient.subscribe('/topic/riceCookerTemperature', function (message) {
+		    // Parse the temperature value from the message body, then format it to 2 decimal places
+		    let temperature = parseFloat(message.body).toFixed(0);
+		    document.getElementById('ricecooker-temp').textContent = `Rice Cooker Temperature: ${temperature}°C`;
+		});
+	
 	// Subscribe to appliance status updates
 	stompClient.subscribe('/topic/applianceStatus', function (message) {
 	    var notification = message.body;
@@ -283,7 +325,10 @@ stompClient.connect({}, function (frame) {
 	    document.getElementById('CoffeeMakerCGResource').innerText = 'Coffee Ground: ' + resourceStatus;
 	});	
 	
-	
+	stompClient.subscribe('/topic/motorSpeed', function(message) {
+	     var motorSpeed = parseInt(message.body);
+	     document.getElementById('motor-speed-display').textContent = `Motor Speed: ${motorSpeed} RPM`;
+	});	
 	
 });
 

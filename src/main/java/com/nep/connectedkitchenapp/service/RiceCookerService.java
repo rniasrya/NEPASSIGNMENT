@@ -25,9 +25,10 @@ import com.nep.connectedkitchenapp.respository.RiceCookerRepository;
 public class RiceCookerService {
 	
 	private RiceCooker currentRiceCooker;
-	
 	private ApplianceSocketServer socketServer;
-	
+	private int simulatedTemperature = 20;
+	private int targetTemperature = 0;
+
 	@Autowired
     private RiceCookerRepository riceCookerRepository;
 	
@@ -47,9 +48,10 @@ public class RiceCookerService {
     private SimpMessagingTemplate messagingTemplate; // Message template for WebSocket communication
     
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);; // Scheduler for timed tasks
-    
     private ScheduledFuture<?> cookingTask; // Stores the cooking task for cancellation or modification
-	
+    private ScheduledFuture<?> sensorTask;
+    private ScheduledExecutorService sensorScheduler = Executors.newScheduledThreadPool(1);
+    
 	@Autowired
     public RiceCookerService(RiceCookerRepository riceCookerRepository, SimpMessagingTemplate messagingTemplate) {
 		this.socketServer = new ApplianceSocketServer(); // Initialize socket server
@@ -100,16 +102,36 @@ public class RiceCookerService {
         // Set up mixing properties and notify
         currentRiceCooker.setState("ON");
         currentRiceCooker.setMode(mode);
+        
+        // Set the target temperature based on the mode
+        switch (currentRiceCooker.getMode()) {
+            case "Rice":
+                targetTemperature = 90;  // Target temperature for Rice mode
+                break;
+            case "Steam":
+            	targetTemperature = 95;  // Target temperature for Steam mode
+                break;
+            case "Warm":
+            	targetTemperature = 60;  // Target temperature for Warm mode
+                break;
+        }
+        
         int cookingTime = getCookingTime();
         currentRiceCooker.setCookingTime(cookingTime);
         currentRiceCooker.setRemainingTime(cookingTime);
                 
         notifyAppliances("Ricecooker is now running.");
-        notifyAppliances("Ricecooker current status: " + "\n\nID: " + currentRiceCooker.getId() + "\n" + "State: " + currentRiceCooker.getState() + "\nMode: " + currentRiceCooker.getMode());
+        notifyAppliances("Ricecooker current status: " + 
+        		"\n\nID: " + currentRiceCooker.getId() + 
+        		"\n" + "State: " + currentRiceCooker.getState() + 
+        		"\nMode: " + currentRiceCooker.getMode() +
+        		"\nTemperature: " + targetTemperature + "°C" +
+        		"\nUsage Count: " + currentRiceCooker.getUsageCount());
         
-        sendSocketMessage("Ricecooker start");
+        sendSocketMessage("Ricecooker has started.");
         sendSocketMessage("Ricecooker session ID: " + sessionId);
 		sendSocketMessage("Ricecooker is set as " + currentRiceCooker.getMode() + " mode and is running for " + currentRiceCooker.getCookingTime() + " seconds.");
+		sendSocketMessage("Ricecooker current temperature: " + targetTemperature + "°C");
 		sendSocketMessage("Ricecooker Usage Count: " + currentRiceCooker.getUsageCount());
     
 		// Rice cooker state in the UI
@@ -128,10 +150,41 @@ public class RiceCookerService {
 	    // Schedule regular updates for remaining mixing time
 	    scheduler.scheduleAtFixedRate(this::updateCookingTime, 0, 1, TimeUnit.SECONDS);
         
+	    startRiceCookerTemperatureSensor();
+	    
         // Save state in repository
         return riceCookerRepository.save(currentRiceCooker);
     }
     
+    // Simulates a temperature sensor that periodically updates and checks for overheating
+    private void startRiceCookerTemperatureSensor() {
+            	
+    	sensorTask = sensorScheduler.scheduleAtFixedRate(() -> {
+    		// Gradually increase temperature to reach the target temperature
+            if (simulatedTemperature < targetTemperature) {
+                simulatedTemperature += 1 + Math.random(); // Adjust the rate as needed to simulate heating
+            } else {
+                simulatedTemperature += (Math.random() > 0.5 ? 1 : -1); // Small fluctuations around target
+            }
+
+            messagingTemplate.convertAndSend("/topic/riceCookerTemperature", simulatedTemperature);
+            currentRiceCooker.setTemperature(simulatedTemperature);
+
+            // Check for overheating condition
+            if (simulatedTemperature > targetTemperature + 20) { // Threshold set to 100°C
+            	stopCooking(currentRiceCooker.getId());
+                sendSocketMessage("Rice Cooker overheated and stopped.");
+                notifyAppliances("Rice Cooker is overheating.");
+            }
+        }, 0, 1, TimeUnit.SECONDS);
+    }
+    
+    // To stop the sensor
+    private void stopRiceCookerTemperatureSensor() {
+        if (sensorTask != null && !sensorTask.isDone()) {
+            sensorTask.cancel(false);       
+        }
+    }
 
 	private void updateCookingTime() {
         int remainingTime = currentRiceCooker.getRemainingTime();
@@ -157,8 +210,11 @@ public class RiceCookerService {
             return;
         }
 		
+		stopRiceCookerTemperatureSensor();
+		
 		currentRiceCooker.setState("OFF");
         riceCookerRepository.save(currentRiceCooker);
+        messagingTemplate.convertAndSend("/topic/riceCookerTemperature", "0");
         messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
 
         // Cancel the scheduled cooking task
@@ -171,7 +227,7 @@ public class RiceCookerService {
         notifyAppliances("Ricecooker has finished. Mixer will start in 10 seconds.");
 
         // Schedule the mixer to start after 10 seconds
-        int speed = 5;
+        int speed = 2;
         
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.schedule(() -> mixerService.startMixing(speed), 10, TimeUnit.SECONDS);
@@ -191,17 +247,19 @@ public class RiceCookerService {
         currentRiceCooker.setState("OFF");
         currentRiceCooker.setRemainingTime(0);
         riceCookerRepository.save(currentRiceCooker);
+        messagingTemplate.convertAndSend("/topic/riceCookerTemperature", "0");
         messagingTemplate.convertAndSend("/topic/riceCooker", currentRiceCooker);
         messagingTemplate.convertAndSend("/topic/riceCookerTimer", "00:00");
         
         sendSocketMessage("Ricecooker has stopped.");
         notifyAppliances("Ricecooker has stopped.");
         
-        // Cancel the cooking task if it exists
         if (cookingTask != null && !cookingTask.isDone()) {
             cookingTask.cancel(false);
         }
 
+        stopRiceCookerTemperatureSensor();
+        
         // Shutdown the scheduler to stop all scheduled tasks
         scheduler.shutdownNow();
                

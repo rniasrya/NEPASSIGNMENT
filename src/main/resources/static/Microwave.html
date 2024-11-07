@@ -24,7 +24,7 @@
 	    <div class="input-group brew-strength-label">
 	        <label for="microwaveTemperature" >Temperature (°C):</label>   
 			<div class="input-container">
-			 <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="1" required>
+			 <input type="number" id="microwaveTemperature" placeholder="Temperature (°C)" min="25.0" max="120.0" required>
 			</div>
 		  </div>
 	    
@@ -45,7 +45,8 @@
 		<!-- Status Section -->
 		<div class="status-container">
 		    <div id="microwave-timer">Microwave Timer: 00:00</div>
-		    <div id="MicrowaveUsageCount" class="status-item">
+			<div id="microwave-temp">Microwave Temperature: 0°C</div>
+			<div id="MicrowaveUsageCount" class="status-item">
 		        <span class="status-title">Usage Count:</span>
 		    </div>
 			<div id="microwaveStatus" class="status-item">

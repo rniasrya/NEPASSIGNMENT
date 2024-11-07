@@ -31,9 +31,14 @@ public class CoffeeMakerController {
         coffeeMakerService.stopBrewing(id);
     }
     
-    @PostMapping("/refill")
-    public CoffeeMaker refillResource() {
-        return coffeeMakerService.refillResource();
+    @PostMapping("/refillWater")
+    public CoffeeMaker refillWaterResource() {
+        return coffeeMakerService.refillWaterResource();
+    }
+    
+    @PostMapping("/refillCoffeeGrounds")
+    public CoffeeMaker refillCoffeeGroundsResource() {
+        return coffeeMakerService.refillCoffeeGroundsResource();
     }
     
 }

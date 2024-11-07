@@ -17,8 +17,9 @@ public class RiceCooker {
     private int remainingTime;
     private int usageCount; 
     private String sessionId;
-    
-    public Long getId() { 
+    private int temperature;
+
+	public Long getId() { 
     	return id; 
     }
     
@@ -74,5 +75,12 @@ public class RiceCooker {
 		this.sessionId = sessionId;
 	}
     
+	public int getTemperature() {
+		return temperature;
+	}
+
+	public void setTemperature(int temperature) {
+		this.temperature = temperature;
+	}
     
 }

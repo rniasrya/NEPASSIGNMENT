@@ -17,8 +17,9 @@ public class Mixer {
     private int remainingTime;
     private int usageCount; 
     private String sessionId;
+    private int motorSpeed;
     
-    public Long getId() { 
+	public Long getId() { 
     	return id; 
     }
     
@@ -72,6 +73,14 @@ public class Mixer {
 
 	public void setSessionId(String sessionId) {
 		this.sessionId = sessionId;
+	}
+	
+	public int getMotorSpeed() {
+		return motorSpeed;
+	}
+
+	public void setMotorSpeed(int motorSpeed) {
+		this.motorSpeed = motorSpeed;
 	}
     
     

@@ -12,8 +12,9 @@ public class Microwave {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String state;    
-    private int temperature;   
-    private int timer;          
+    private double temperature; 
+
+	private int timer;          
     private int remainingTime;	
     private int usageCount; 
     private String sessionId;
@@ -35,11 +36,11 @@ public class Microwave {
     	this.state = state; 
     }
 
-    public int getTemperature() { 
+    public double getTemperature() { 
     	return temperature; 
     }
     
-    public void setTemperature(int temperature) { 
+    public void setTemperature(double temperature) { 
     	this.temperature = temperature; 
     }
 

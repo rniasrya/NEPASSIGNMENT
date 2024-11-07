@@ -333,3 +333,15 @@ select:focus {
     margin-bottom: 10px; 
     text-align: center; 
 }
+
+#microwave-temp {
+    font-weight: bold; 
+}
+
+#ricecooker-temp {
+    font-weight: bold; 
+}
+
+#motor-speed-display{
+	font-weight: bold;
+}
